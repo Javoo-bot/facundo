@@ -1,0 +1,477 @@
+{
+  "uid": "garden-agent-detail",
+  "title": "One agent in detail",
+  "description": "One agent's measures over time against their minimums, and every case that missed, with links to the garden dashboard and Langfuse. Built by agents/monitoring/push.mjs; edit the JSON there, not here.",
+  "tags": [
+    "garden"
+  ],
+  "timezone": "Europe/Madrid",
+  "editable": true,
+  "refresh": "15m",
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "schemaVersion": 39,
+  "links": [
+    {
+      "title": "Agent scorecard",
+      "type": "link",
+      "url": "/d/garden-agent-scorecard"
+    },
+    {
+      "title": "Garden overview",
+      "type": "link",
+      "url": "/d/garden-overview"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "agent",
+        "label": "Agent",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "garden-postgres"
+        },
+        "query": "select agent as __value, nick as __text from agent_minimums group by agent, nick order by nick",
+        "definition": "select agent as __value, nick as __text from agent_minimums group by agent, nick order by nick",
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "Concierge",
+          "value": "concierge"
+        }
+      },
+      {
+        "name": "measure",
+        "label": "Measure",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "garden-postgres"
+        },
+        "query": "select measure from agent_minimums where agent = '$agent' order by position",
+        "definition": "select measure from agent_minimums where agent = '$agent' order by position",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "hide": 2,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "What good looks like for this agent",
+      "description": "Copied from the agent's file in agents/thinking/. Only a person changes a minimum.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select measure as \"Measure\", means as \"What good means\", minimum_text as \"Minimum\", window_text as \"Window\", case when kind = 'decides' then 'decides' else 'advice only' end as \"Kind\", measurable as \"Measured from\" from agent_minimums where agent = '$agent' order by position"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Measure"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Minimum"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Window"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "$measure against its minimum",
+      "description": "The share of good cases over the measure's window, each day, with the minimum as a dashed line. Bars are how many cases the window held: a day with fewer than the window needs is not judged.",
+      "repeat": "measure",
+      "repeatDirection": "h",
+      "maxPerRow": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select day::timestamp as time, case when percent then value * 100 else value end as \"Result\", case when percent then minimum * 100 else minimum end as \"Minimum\", cases as \"Cases in window\" from agent_daily_metrics where agent = '$agent' and measure = '$measure' and day >= $__timeFrom()::date order by 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Result"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Minimum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cases in window"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 25
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Cases that missed",
+      "description": "Every case in the time range that did not meet what good looks like, newest first. Open shows it in the garden dashboard; Langfuse shows what the agent was given and said.",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select at as \"When\", measure as \"Measure\", summary as \"What happened\", link, trace_link, context_ref as \"Stored context\" from agent_measure_cases where agent = '$agent' and not passed and $__timeFilter(at) order by at desc limit 500"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "When"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Measure"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "link"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Open"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open in the garden dashboard",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "text": "Open",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trace_link"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Langfuse"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open the Langfuse trace",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "text": "Langfuse",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Cases judged per day",
+      "description": "How many cases each measure judged on each day, and how many of them missed.",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "select day::timestamp as time, measure || ': missed' as metric, cases - matching as value from agent_measure_daily where agent = '$agent' and day >= $__timeFrom()::date union all select day::timestamp, measure || ': good', matching from agent_measure_daily where agent = '$agent' and day >= $__timeFrom()::date order by 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    }
+  ]
+}

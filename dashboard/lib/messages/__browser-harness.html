@@ -1,0 +1,136 @@
+<!doctype html><html><body>
+<div id="doc">
+  <p><span data-fc-key="email.offer.greeting">Hi there,</span></p>
+  <p><span data-fc-key="email.offer.wrapper">outer <span data-fc-key="email.offer.inner">inner</span></span></p>
+</div>
+
+<style>
+  [data-fc-key]{outline:1px dashed rgba(31,122,85,.35);outline-offset:2px;border-radius:2px}
+  [data-fc-key]:hover{background:rgba(31,122,85,.10);outline-style:solid}
+  [data-fc-key].fc-active{background:rgba(31,122,85,.18);outline:2px solid #1F7A55}
+  [data-fc-key][data-fc-editable="1"]{cursor:text}
+  [data-fc-key][data-fc-editable="1"]:focus{outline:2px solid #1F7A55;background:rgba(31,122,85,.10)}
+</style>
+<script>
+  // Mark every LEAF tagged span (one with no nested data-fc-key of its own)
+  // as directly editable. A wrapper span whose text was built by interpolating
+  // one catalog string into another stays click-to-focus only: a keystroke
+  // inside it couldn't be attributed to a single key.
+  document.querySelectorAll('[data-fc-key]').forEach(function (el) {
+    if (!el.querySelector('[data-fc-key]')) {
+      el.setAttribute('data-fc-editable', '1');
+      el.contentEditable = 'true';
+      el.spellcheck = false;
+      el.setAttribute('role', 'textbox');
+      el.setAttribute('aria-multiline', 'true');
+    }
+  });
+
+  function editableAncestor(node) {
+    var el = node && node.closest ? node.closest('[data-fc-key]') : null;
+    return el && el.getAttribute('data-fc-editable') === '1' ? el : null;
+  }
+
+  var lastFocused = null;
+
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest('[data-fc-key]') : null;
+    if (!el) return;
+    if (el.getAttribute('data-fc-editable') === '1') {
+      // Editable: let the native click place the caret. Only stop an actual
+      // link inside the field from navigating away mid-edit.
+      var a = e.target.closest ? e.target.closest('a') : null;
+      if (a) e.preventDefault();
+      return;
+    }
+    // A non-leaf wrapper: hand off to the matching field in the side panel,
+    // same as before this change.
+    e.preventDefault();
+    document.querySelectorAll('[data-fc-key].fc-active').forEach(function (n) { n.classList.remove('fc-active'); });
+    el.classList.add('fc-active');
+    parent.postMessage({ source: 'fc-preview', type: 'click', key: el.getAttribute('data-fc-key') }, '*');
+  }, true);
+
+  document.addEventListener('focusin', function (e) {
+    var el = editableAncestor(e.target);
+    if (!el) return;
+    lastFocused = el;
+    document.querySelectorAll('[data-fc-key].fc-active').forEach(function (n) { n.classList.remove('fc-active'); });
+    el.classList.add('fc-active');
+    parent.postMessage({ source: 'fc-preview', type: 'focus', key: el.getAttribute('data-fc-key') }, '*');
+  });
+
+  document.addEventListener('focusout', function (e) {
+    var el = editableAncestor(e.target);
+    if (!el) return;
+    parent.postMessage({ source: 'fc-preview', type: 'blur', key: el.getAttribute('data-fc-key'), html: el.innerHTML }, '*');
+  });
+
+  document.addEventListener('input', function (e) {
+    var el = editableAncestor(e.target);
+    if (!el) return;
+    parent.postMessage({ source: 'fc-preview', type: 'input', key: el.getAttribute('data-fc-key'), html: el.innerHTML }, '*');
+  });
+
+  // The formatting toolbar lives in the parent document (outside the sandbox)
+  // and drives THIS document's own execCommand over postMessage: a sandboxed
+  // srcDoc iframe with no allow-same-origin can't be reached synchronously
+  // from the parent at all. document.execCommand is deprecated, but it is
+  // still the only thing that reliably drives bold/italic/underline/link in a
+  // contentEditable region without pulling in a rich-text-editor dependency.
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.source !== 'fc-editor' || e.data.type !== 'exec') return;
+    if (!lastFocused) return;
+    lastFocused.focus();
+    document.execCommand(e.data.cmd, false, e.data.value);
+    parent.postMessage({ source: 'fc-preview', type: 'input', key: lastFocused.getAttribute('data-fc-key'), html: lastFocused.innerHTML }, '*');
+  });
+</script>
+<script>
+// Drive the bridge the way the parent would, and record what comes back.
+const got = [];
+window.addEventListener('message', e => { if (e.data && e.data.source === 'fc-preview') got.push(e.data); });
+const results = [];
+function check(name, cond, extra) { results.push((cond ? 'PASS ' : 'FAIL ') + name + (extra ? '  :: ' + extra : '')); }
+
+const greeting = document.querySelector('[data-fc-key="email.offer.greeting"]');
+check('regions are contenteditable', greeting.isContentEditable, 'isContentEditable=' + greeting.isContentEditable);
+
+greeting.click();
+setTimeout(() => {
+  check('a leaf is edited in place, not handed off', greeting.isContentEditable && !got.some(m => m.type === 'click'), JSON.stringify(got.slice(0,2)));
+  const wrapper = document.querySelector('[data-fc-key="email.offer.wrapper"]');
+  check('a non-leaf wrapper is NOT contenteditable', !wrapper.isContentEditable);
+  wrapper.click();  // postMessage is async: assert after a tick, not inline.
+  const inner = document.querySelector('[data-fc-key="email.offer.inner"]');
+  check('the inner leaf IS contenteditable', inner.isContentEditable);
+
+  // Type into the region and confirm an input event carries the new HTML.
+  greeting.focus();
+  greeting.textContent = 'Hi Marie,';
+  greeting.dispatchEvent(new InputEvent('input', {bubbles: true}));
+
+  setTimeout(() => {
+    const inputs = got.filter(m => m.type === 'input' || m.html !== undefined);
+    check('typing posts the edited html back', inputs.length > 0, JSON.stringify(inputs.slice(-1)));
+
+    // Selection + execCommand bold, the risky bit.
+    const r = document.createRange(); r.selectNodeContents(greeting);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    let ok = false;
+    try { ok = document.execCommand('bold'); } catch (e) { ok = false; }
+    check('execCommand bold applies inside the document', ok && /<b>|<strong>/i.test(greeting.innerHTML), greeting.innerHTML);
+
+    // Caret survives: place caret, confirm it is still in the region.
+    greeting.focus();
+    const r2 = document.createRange(); r2.setStart(greeting.firstChild || greeting, 0); r2.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r2);
+    check('caret can be placed and read back', document.activeElement === greeting && getSelection().rangeCount === 1);
+
+    check('clicking a wrapper hands off to the side panel', got.some(m => m.type === 'click'), JSON.stringify(got.filter(m=>m.type==='click')));
+    document.title = 'DONE';
+    const out = document.createElement('pre'); out.id = 'out'; out.textContent = results.join('\n');
+    document.body.appendChild(out);
+  }, 60);
+}, 60);
+</script></body></html>

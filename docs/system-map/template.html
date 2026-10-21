@@ -1,0 +1,608 @@
+<title>Facundo System Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a bird's-eye stack. Architecture context first, then the order loop as six phase columns, then the cross-cutting risks. Click any stage for its detail. */
+:root {
+  --bg: #F2F4F1; --surface: #FFFFFF; --sunk: #E7ECE8; --fg: #14211D; --muted: #5A6B65; --line: #CBD5D0;
+  --accent: #0E5A4E; --accent-soft: #DCEBE6; --recruit: #5B4B8A; --recruit-soft: #E9E5F4;
+  --ok: #1F7A4D; --ok-soft: #DDF0E5; --warn: #9A6200; --warn-soft: #FBEFD6; --plan: #66707A; --plan-soft: #E6E9EC; --ai: #0B6FB3; --ai-soft: #DDEEFB; --open: #B4235A; --open-soft: #F9E0EA;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0F1513; --surface: #17201D; --sunk: #1D2824; --fg: #E4ECE8; --muted: #93A49E; --line: #2D3B36;
+  --accent: #5CC4AE; --accent-soft: #173A33; --recruit: #B3A3E6; --recruit-soft: #2A2443;
+  --ok: #5FCB91; --ok-soft: #173426; --warn: #E5B04F; --warn-soft: #3A2C10; --plan: #A3ADB7; --plan-soft: #252B31; --ai: #6CB8F0; --ai-soft: #102C42; --open: #F27BA6; --open-soft: #42182A; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0F1513; --surface: #17201D; --sunk: #1D2824; --fg: #E4ECE8; --muted: #93A49E; --line: #2D3B36;
+  --accent: #5CC4AE; --accent-soft: #173A33; --recruit: #B3A3E6; --recruit-soft: #2A2443;
+  --ok: #5FCB91; --ok-soft: #173426; --warn: #E5B04F; --warn-soft: #3A2C10; --plan: #A3ADB7; --plan-soft: #252B31; --ai: #6CB8F0; --ai-soft: #102C42; --open: #F27BA6; --open-soft: #42182A; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); margin: 0 }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 40px); padding-block: 32px 64px; display: grid; gap: 48px }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15 }
+h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 700; letter-spacing: -0.01em }
+h2 { font-size: 24px; font-weight: 700 }
+h3 { font-size: 16px; font-weight: 600 }
+p { margin: 0 }
+code, .mono { font-family: var(--mono); font-size: 12.5px }
+.eyebrow { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+.lede { color: var(--muted); max-width: 70ch }
+header { display: grid; gap: 14px }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--sunk); font: 500 12.5px/1.3 var(--body); font-variant-numeric: tabular-nums; border: 1px solid transparent }
+.chip b { font-weight: 600 }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted) }
+.s-shipped .dot, .s-handled .dot, .dot.s-shipped, .dot.s-handled { background: var(--ok) }
+.s-in-progress .dot, .dot.s-in-progress { background: var(--warn) }
+.s-planned .dot, .dot.s-planned { background: var(--plan) }
+.s-open .dot, .dot.s-open { background: var(--open) }
+.pill { font: 500 11px/1 var(--mono); padding: 4px 7px; border-radius: 4px; white-space: nowrap }
+.pill.s-shipped, .pill.s-handled { background: var(--ok-soft); color: var(--ok) }
+.pill.s-in-progress { background: var(--warn-soft); color: var(--warn) }
+.pill.s-planned { background: var(--plan-soft); color: var(--plan) }
+.pill.s-open { background: var(--open-soft); color: var(--open) }
+section { display: grid; gap: 18px; min-width: 0 }
+.sechead { display: grid; gap: 6px }
+
+/* Architecture */
+.arch { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: stretch }
+.col { display: grid; gap: 10px; align-content: start; min-width: 0 }
+.coltitle { font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-bottom: 2px }
+.ext { background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px }
+.ext h3 { font-size: 14.5px }
+.ext p { font-size: 13px; color: var(--muted) }
+.ext .tag { font: 500 10.5px/1 var(--mono); color: var(--muted) }
+.ext.recruit { border-color: color-mix(in srgb, var(--recruit) 45%, transparent) }
+.ext.prod { border-color: color-mix(in srgb, var(--accent) 45%, transparent) }
+.core { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px }
+.runtimes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.rt { border-radius: 8px; padding: 12px; display: grid; gap: 6px; align-content: start }
+.rt.recruit { background: var(--recruit-soft) }
+.rt.prod { background: var(--accent-soft) }
+.rt.both { background: linear-gradient(135deg, var(--recruit-soft) 0 50%, var(--accent-soft) 50% 100%) }
+.rt h3 { font-size: 15px }
+.rt ul { margin: 0; padding-left: 16px; font-size: 13px }
+.rt li { margin: 2px 0 }
+.rt .who { font: 500 10.5px/1.3 var(--mono); color: var(--muted) }
+.db { background: var(--sunk); border-radius: 8px; padding: 12px; display: grid; gap: 4px }
+.db .tables { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px }
+.db code { background: var(--surface); padding: 2px 6px; border-radius: 4px; font-size: 11.5px }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--muted) }
+.legend span { display: inline-flex; align-items: center; gap: 6px }
+.sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block }
+.cron { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px }
+.cron div { border-left: 3px solid var(--accent); padding: 4px 10px; font-size: 13px }
+.cron div.r { border-left-color: var(--recruit) }
+.cron b { display: block; font-family: var(--mono); font-size: 12px; font-weight: 500 }
+
+/* Order loop */
+.loopscroll { overflow-x: auto; padding-bottom: 6px }
+.loop { display: grid; grid-template-columns: repeat(6, minmax(190px, 1fr)); gap: 0; min-width: 1180px }
+.phase { display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 0 8px; position: relative; min-width: 0 }
+.phase + .phase::before { content: ""; position: absolute; left: -7px; top: 18px; width: 12px; height: 12px; border-top: 2px solid var(--muted); border-right: 2px solid var(--muted); transform: rotate(45deg); opacity: .55 }
+.phead { border-top: 4px solid var(--accent); padding-top: 8px; display: grid; gap: 4px }
+.phase.supply .phead { border-top-color: var(--recruit) }
+.phead .num { font: 500 11px/1 var(--mono); color: var(--muted) }
+.phead h3 { font-size: 18px; font-family: var(--display) }
+.phead p { font-size: 12.5px; color: var(--muted) }
+.stages { display: grid; gap: 8px; align-content: start }
+.stage { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; display: grid; gap: 6px; transition: border-color .15s, transform .15s }
+.stage:hover { border-color: var(--accent) }
+.stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.stage[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) }
+.phase.supply .stage[aria-pressed="true"], .phase.supply .stage:hover { border-color: var(--recruit); box-shadow: none }
+.stage .top { display: flex; justify-content: space-between; gap: 6px; align-items: start }
+.stage .lbl { font-weight: 600; font-size: 14px; line-height: 1.3 }
+.stage .short { font-size: 12.5px; color: var(--muted); line-height: 1.4 }
+.stage .meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap }
+.stage .surf { font: 500 10.5px/1.2 var(--mono); color: var(--muted) }
+.bdots { display: flex; flex-wrap: wrap; gap: 3px; max-width: 120px }
+.bdots .dot { width: 6px; height: 6px }
+.kind-decision .lbl::before { content: "◆ "; color: var(--warn); font-size: 11px }
+.kind-start .lbl::before { content: "● "; color: var(--accent); font-size: 11px }
+.phase.supply .kind-start .lbl::before { color: var(--recruit) }
+.gate { margin-top: 8px; display: grid; grid-template-columns: repeat(6, minmax(190px, 1fr)); min-width: 1180px; gap: 0 }
+.gate > div { padding: 0 8px }
+.band { border-radius: 8px; padding: 9px 12px; font-size: 12.5px; display: grid; gap: 2px }
+.band b { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase }
+.band.wset { background: var(--accent-soft); grid-column: 2 / 7 }
+.band.bridge { background: var(--recruit-soft); grid-column: 1 / 2 }
+.band.human { background: var(--warn-soft); grid-column: 3 / 7 }
+.band.human b { color: var(--warn) }
+.band.wset b { color: var(--accent) }
+.band.bridge b { color: var(--recruit) }
+
+/* Detail */
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: clamp(16px, 2.4vw, 28px); display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px }
+.detail .left { display: grid; gap: 12px; align-content: start; min-width: 0 }
+.detail .desc { font-size: 14px; max-width: 72ch; overflow-wrap: anywhere }
+.detail .desc code { background: var(--sunk); padding: 1px 4px; border-radius: 3px; font-size: 12px }
+.codes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px }
+.codes li { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere }
+.codes li b { color: var(--fg); font-weight: 500 }
+.right { display: grid; gap: 10px; align-content: start; min-width: 0 }
+.filters { display: flex; flex-wrap: wrap; gap: 6px }
+.filters button { all: unset; cursor: pointer; box-sizing: border-box }
+.filters button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.filters .chip[aria-pressed="true"] { border-color: var(--fg); background: var(--surface) }
+.blist { display: grid; gap: 8px; max-height: 560px; overflow-y: auto; padding-right: 4px }
+.br { border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; display: grid; gap: 4px; background: var(--bg) }
+.br .t { font-size: 13.5px; font-weight: 500; line-height: 1.4 }
+.br .h { font-size: 12.5px; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere }
+.br .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
+.br .id { font: 400 11px/1 var(--mono); color: var(--muted) }
+.empty { color: var(--muted); font-size: 13px }
+
+/* Fork */
+.forkgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: start }
+.forkgrid .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; overflow-x: auto; margin: 0 }
+.notes { display: grid; gap: 14px; font-size: 14px }
+.notes h3 { margin-bottom: 4px }
+.notes table { border-collapse: collapse; width: 100%; font-size: 13px }
+.notes td { border-top: 1px solid var(--line); padding: 6px 4px; vertical-align: top }
+.notes td:last-child { color: var(--muted) }
+.modes { display: grid; gap: 6px }
+.modes div { font-size: 13.5px }
+.modes b { font-family: var(--mono); font-weight: 500; font-size: 12.5px; color: var(--accent) }
+footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px }
+
+/* AI marking */
+.ext.ai { border: 1px solid var(--ai); background: var(--ai-soft) }
+.ext.ai .tag, .ext.ai h3 { color: var(--ai) }
+.aibadge { font: 600 10px/1 var(--mono); letter-spacing: .06em; color: var(--surface); background: var(--ai); padding: 3px 5px; border-radius: 3px; white-space: nowrap }
+.stage.has-ai { border-left: 3px solid var(--ai) }
+.ainote { background: var(--ai-soft); border-left: 3px solid var(--ai); padding: 10px 12px; border-radius: 0 6px 6px 0; font-size: 13.5px }
+.ainote b { color: var(--ai) }
+
+/* Shop choice */
+.callout { display: flex; gap: 14px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; max-width: 900px }
+.callout .big { font: 700 13px/1 var(--mono); color: var(--ok); background: var(--ok-soft); padding: 6px 8px; border-radius: 6px; white-space: nowrap }
+.callout p { font-size: 14.5px }
+.steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; counter-reset: st }
+.step { position: relative; padding: 0 10px; display: grid; gap: 6px; align-content: start; min-width: 0 }
+.step + .step::before { content: "→"; position: absolute; left: -8px; top: 6px; color: var(--muted); font-size: 16px }
+.step .n { font: 600 12px/1 var(--mono); color: var(--surface); background: var(--accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center }
+.step h3 { font-size: 15.5px }
+.step p { font-size: 13px; color: var(--muted) }
+.step ul { margin: 0; padding-left: 15px; font-size: 12.5px; color: var(--muted) }
+.funnel { height: 8px; border-radius: 4px; background: var(--accent); opacity: .8 }
+.choose { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr); gap: 20px; align-items: start }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; min-width: 0 }
+.rings svg { width: 100%; max-width: 360px; height: auto; display: block; margin: 0 auto }
+.r0 { fill: var(--accent); fill-opacity: .22; stroke: var(--accent) }
+.r1 { fill: var(--accent); fill-opacity: .12; stroke: var(--accent); stroke-dasharray: 3 3 }
+.r2 { fill: var(--accent); fill-opacity: .05; stroke: var(--accent); stroke-width: 2 }
+.svgtext { fill: var(--fg); font: 500 11px var(--mono) }
+.svgmuted { fill: var(--muted); font: 400 10.5px var(--mono) }
+.pin { fill: var(--fg) }
+.pinA { fill: var(--ok) } .pinB { fill: var(--accent) } .pinC { fill: var(--open) }
+.scoretbl { overflow-x: auto }
+.scoretbl table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 460px }
+.scoretbl th, .scoretbl td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top }
+.scoretbl th { font: 500 11px/1.2 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; border-top: 0 }
+.scoretbl td.n { text-align: right; font-family: var(--mono); font-size: 12.5px }
+.scoretbl tr.tot td { font-weight: 600; border-top: 2px solid var(--fg) }
+.scoretbl .why { color: var(--muted); font-size: 12px }
+.modes3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.modes3 div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 4px; font-size: 13px }
+.modes3 b { font: 600 12px/1 var(--mono); color: var(--accent) }
+
+/* Rules / AI / people swimlanes */
+.lanes { display: grid; grid-template-columns: 120px repeat(6, minmax(150px, 1fr)); min-width: 1080px; gap: 6px }
+.lanes .ph { font: 600 13px/1.2 var(--display); padding: 6px 4px; border-bottom: 2px solid var(--accent) }
+.lanes .ph.sup { border-bottom-color: var(--recruit) }
+.lanes .lane { font: 600 12px/1.25 var(--mono); padding: 10px 8px; border-radius: 8px; display: grid; align-content: center; gap: 4px }
+.lanes .lane small { font: 400 11px/1.3 var(--body); color: var(--muted) }
+.lane.rules { background: var(--ok-soft); color: var(--ok) }
+.lane.ai { background: var(--ai-soft); color: var(--ai) }
+.lane.human { background: var(--warn-soft); color: var(--warn) }
+.cell { display: grid; gap: 5px; align-content: start; padding: 6px 0 }
+.tk { font-size: 12.5px; line-height: 1.35; padding: 7px 9px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line) }
+.tk.r { border-left: 3px solid var(--ok) }
+.tk.a { border: 1px solid var(--ai); background: var(--ai-soft) }
+.tk.a b { color: var(--ai) }
+.tk.h { border-left: 3px solid var(--warn) }
+.tk small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px }
+.tk.none { background: transparent; border: 1px dashed var(--line); color: var(--muted); font-style: italic }
+.guards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
+.guards div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; display: grid; gap: 4px }
+.guards b { font-size: 13.5px }
+
+/* Agents */
+.anatomy { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px }
+.an { position: relative; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: 8px; padding: 10px 12px; display: grid; gap: 3px; font-size: 12.5px; color: var(--muted) }
+.an b { color: var(--fg); font-size: 14px }
+.an.ai { border: 1px solid var(--ai); border-left-width: 3px; background: var(--ai-soft) }
+.an.ai b { color: var(--ai) }
+.an .k { font: 600 11px/1 var(--mono); color: var(--muted) }
+.agentlist { display: grid; gap: 22px }
+.agent { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: clamp(14px, 2vw, 22px); display: grid; gap: 14px; min-width: 0 }
+.agent header { display: grid; gap: 4px; max-width: 80ch }
+.agent .q { font: 500 12px/1.3 var(--mono); color: var(--ai) }
+.agent h3 { font-size: 20px; font-family: var(--display) }
+.agent header p { color: var(--muted); font-size: 14px }
+.pipe { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px }
+.pipe > div, .fstep { background: var(--bg); border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: 8px; padding: 10px 11px; font-size: 12.5px; line-height: 1.45; display: grid; gap: 5px; align-content: start; min-width: 0; overflow-wrap: anywhere }
+.pipe > div > b, .fstep > b { font-size: 13px; color: var(--fg) }
+.pipe .m, .fstep.m, .chat .m { border: 1px solid var(--ai); border-left-width: 3px; background: var(--ai-soft) }
+.pipe .m > b, .fstep.m > b { color: var(--ai) }
+.pipe .g, .fstep.g, .chat .g { border-left-color: var(--ok); background: var(--ok-soft) }
+.pipe code, .fstep code, .chat code { display: block; font-size: 11.5px; background: var(--surface); padding: 4px 6px; border-radius: 4px; margin-top: 2px }
+.chat code { display: inline; padding: 1px 4px }
+.pipe small { color: var(--muted); font-size: 11.5px }
+.pipe ol, .pipe ul, .fstep ol { margin: 0; padding-left: 16px; display: grid; gap: 3px }
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px }
+.intents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 12.5px; color: var(--muted) }
+.intents b { display: block; color: var(--fg); font-size: 12.5px }
+.issues { border-top: 1px dashed var(--line); padding-top: 10px; font-size: 13px }
+.issues b { font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--open) }
+.issues ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; max-width: 95ch }
+.chat { display: grid; gap: 8px; max-width: 760px }
+.bubble { padding: 9px 12px; border-radius: 14px; font-size: 13.5px; max-width: 80% }
+.bubble.f { background: var(--sunk); justify-self: start; border-bottom-left-radius: 4px }
+.bubble.y { background: var(--ai); color: var(--surface); justify-self: end; border-bottom-right-radius: 4px }
+.sys { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--ok); padding: 6px 10px; border-radius: 0 6px 6px 0; background: var(--bg) }
+.sys.h { border-left-color: var(--warn); background: var(--warn-soft) }
+
+@media (max-width: 1100px) {
+  .pipe, .anatomy { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .flow { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+}
+@media (max-width: 640px) {
+  .pipe, .anatomy, .flow, .intents { grid-template-columns: minmax(0, 1fr) }
+}
+@media (max-width: 980px) {
+  .arch, .detail, .forkgrid, .choose { grid-template-columns: minmax(0, 1fr) }
+  .steps { grid-template-columns: minmax(0, 1fr); gap: 14px }
+  .step + .step::before { content: "↓"; left: 2px; top: -16px }
+  .modes3 { grid-template-columns: minmax(0, 1fr) }
+}
+@media (max-width: 640px) {
+  .runtimes { grid-template-columns: minmax(0, 1fr) }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Facundo · architecture at a glance</span>
+    <h1>Facundo System Map</h1>
+    <p class="lede">Two products share one repo. <strong>Discovery &amp; Recruiting</strong> finds and signs florist shops. <strong>Production</strong> takes a real Shopify order, places it with a florist, pays the split against a delivered photo and writes the result back to Shopify. The order loop below is generated from <code>dashboard/lib/lifecycle.ts</code>, the same file that renders <code>/lifecycle</code>.</p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <section>
+    <div class="sechead">
+      <span class="eyebrow">Layer 1</span>
+      <h2>Runtimes and the services around them</h2>
+      <p class="lede">Three runtimes write to one Supabase database. Purple belongs to Recruiting, green to Production. The dashboard serves both.</p>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--recruit-soft);outline:1px solid var(--recruit)"></i>Discovery &amp; Recruiting</span>
+      <span><i class="sw" style="background:var(--accent-soft);outline:1px solid var(--accent)"></i>Production / order operations</span>
+      <span><i class="sw" style="border:1px dashed var(--muted)"></i>External service</span>
+      <span><i class="sw" style="background:var(--ai-soft);outline:1px solid var(--ai)"></i>AI model calls</span>
+    </div>
+    <div class="arch">
+      <div class="col">
+        <div class="coltitle">Comes in</div>
+        <div class="ext prod"><span class="tag">Order source</span><h3>Shopify Plus store</h3><p>orders/create, updated, edited, cancelled webhooks into the worker. Hourly reconcile pulls anything missed.</p></div>
+        <div class="ext recruit"><span class="tag">Discovery</span><h3>Apify (Google Maps)</h3><p>Raw florist listings per city for the ingest pipeline.</p></div>
+        <div class="ext"><span class="tag">Geo</span><h3>Nominatim</h3><p>Geocodes shops and delivery addresses. Custom user agent, at most 1 request per second.</p></div>
+        <div class="ext recruit"><span class="tag">Engagement</span><h3>Email + SMS webhooks</h3><p>Click, bounce and complaint events, plus short-link redirects. These move the recruiting funnel.</p></div>
+      </div>
+      <div class="core">
+        <div class="coltitle">Our code</div>
+        <div class="runtimes">
+          <div class="rt recruit">
+            <span class="who">ingest/ · Python CLI</span>
+            <h3>Ingest pipeline</h3>
+            <ul><li>Scrape a city</li><li>Enrich phone, email, owner (Claude via usage routing)</li><li>Score and rank</li><li>Idempotent upsert on city + place</li></ul>
+          </div>
+          <div class="rt prod">
+            <span class="who">ingest-worker/ · Cloudflare Worker</span>
+            <h3>Order engine</h3>
+            <ul><li>Shopify webhook, HMAC check</li><li>orders-queue into a durable OrderWorkflow</li><li>Geocode and match</li><li>Reconcile sweeps</li><li>Per-minute cron fan-out</li></ul>
+          </div>
+          <div class="rt both">
+            <span class="who">dashboard/ · Next.js 15</span>
+            <h3>Dashboard</h3>
+            <ul><li>Staff backoffice and CX desk</li><li>Florist PWA: join, offers, photo upload</li><li>Offer waves, sequences, payouts</li><li>Shopify write-back</li></ul>
+          </div>
+        </div>
+        <div class="db">
+          <h3>Supabase Postgres</h3>
+          <p style="font-size:13px;color:var(--muted)">RLS checks every read against the allow list. Ingest and a few server routes use the service role.</p>
+          <div class="tables">
+            <code>cities</code><code>florists</code><code>sequence_enrolments</code><code>orders</code><code>order_assignments</code><code>order_approvals</code><code>payouts</code><code>conversations</code><code>app_settings</code><code>allowed_emails</code>
+          </div>
+        </div>
+        <div class="cron">
+          <div><b>every minute</b>Outbox drain, offer-wave tick and sequence tick, fanned out from the worker cron</div>
+          <div><b>hourly</b>Shopify reconcile: re-enqueue orders whose webhook never arrived</div>
+          <div class="r"><b>gate</b>Every sweep checks the working set before it touches an order</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="coltitle">Goes out</div>
+        <div class="ext prod"><span class="tag">Money</span><h3>Airwallex Issuing</h3><p>Single-use virtual card per payout leg. Ledger rail for tests and demos.</p></div>
+        <div class="ext"><span class="tag">Messages</span><h3>Email (Resend, Ongage) and SMS (Telnyx)</h3><p>Offers, florist confirmations, recruiting touches. Customer email runs through Mechanic into Ongage.</p></div>
+        <div class="ext ai"><span class="tag">AI</span><h3>Claude via OpenRouter, Gemini</h3><p>Shop relevance and enrichment, personalised recruiting copy, florist reply drafts, line-item translation and the two-model photo check. Never matching, money or order state.</p></div>
+        <div class="ext prod"><span class="tag">Storage + telemetry</span><h3>Cloudflare R2, PostHog</h3><p>Delivery photos in R2. Worker failures mirrored to PostHog as order automation events.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead">
+      <span class="eyebrow">Layer 2</span>
+      <h2>The order loop, end to end</h2>
+      <p class="lede">Six phases left to right. Each card is a happy-path stage. The dots under it are its known failure branches, coloured by how they are handled. A blue <span class="aibadge">AI</span> tag and blue left edge mark a stage where a model takes part. Select a stage to read what it does, where the code lives and every way it can break.</p>
+    </div>
+    <div class="loopscroll">
+      <div class="loop" id="loop"></div>
+      <div class="gate">
+        <div class="band bridge"><b>Cold-offer bridge</b>A shop still in the funnel can be offered a real order. That is a Production decision.</div>
+        <div class="band wset"><b>Working-set gate</b>Every order is ingested. Only orders matching an active tag or picked by staff are matched, offered and escalated automatically.</div>
+      </div>
+      <div class="gate">
+        <div></div>
+        <div></div>
+        <div class="band human"><b>Where a person steps in</b>The CX desk gathers unplaceable orders, held cold offers, stalled offers, late photos, held payouts and escalated support threads into one queue. In semi mode each step waits for approval. Accept-leg and delivery-leg payouts never wait.</div>
+      </div>
+    </div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+  </section>
+
+  <section id="choose">
+    <div class="sechead">
+      <span class="eyebrow">Layer 3 · the decision</span>
+      <h2>How one shop is chosen</h2>
+      <p class="lede">This is the Match stage drawn out. It runs in <code>match.ts</code>, one shared file that both the worker and the dashboard use.</p>
+    </div>
+    <div class="callout">
+      <span class="big">NO AI</span>
+      <p><strong>No AI model picks the shop.</strong> The choice is a fixed rule that anyone can recompute. The same order and the same shops always give the same ranking, and each candidate is saved with the score breakdown that put it there. Every number below is a setting in Settings → Matching. If a setting is missing or broken, that one value falls back to its default, so a bad row can never stop matching.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><h3>Find shops near the address</h3><p>Look inside a box around the delivery point, as wide as the 20 km cap, across every city.</p><div class="funnel" style="width:100%"></div></div>
+      <div class="step"><span class="n">2</span><h3>Drop who can't take it</h3><ul><li>Test shops</li><li>Denylisted or lost</li><li>No trust tier, so we can't pay them</li><li>Below the rating floor (off by default)</li><li>Distance unknown, or past their radius</li><li>Already full for that day</li></ul><div class="funnel" style="width:72%"></div></div>
+      <div class="step"><span class="n">3</span><h3>Sort by distance ring</h3><p>0–5 km, then 5–10 km, then 10–20 km. A shop in a nearer ring <strong>always</strong> ranks above one further out, whatever their scores.</p><div class="funnel" style="width:55%"></div></div>
+      <div class="step"><span class="n">4</span><h3>Score inside each ring</h3><p>Inside a ring, a weighted score decides the order. The weights are in the table below.</p><div class="funnel" style="width:40%"></div></div>
+      <div class="step"><span class="n">5</span><h3>Keep the top 3</h3><p>Merge duplicate listings of one shop and shops sharing one inbox. Save the best 3 as ranked candidates for the order.</p><div class="funnel" style="width:24%"></div></div>
+    </div>
+    <div class="choose">
+      <div class="panel rings">
+        <h3>Example: three shops around one delivery</h3>
+        <svg viewBox="0 0 340 330" role="img" aria-label="Distance rings at 5, 10 and 20 km. Shop A at 3.2 km in the first ring, shop B at 7 km in the second, shop C at 24 km outside the cap.">
+          <circle class="r2" cx="170" cy="170" r="140"/>
+          <circle class="r1" cx="170" cy="170" r="70"/>
+          <circle class="r0" cx="170" cy="170" r="35"/>
+          <text class="svgmuted" x="170" y="218" text-anchor="middle">5 km</text>
+          <text class="svgmuted" x="170" y="253" text-anchor="middle">10 km</text>
+          <text class="svgmuted" x="170" y="302" text-anchor="middle">20 km · hard cap</text>
+          <path class="pin" d="M170 164 l5 6 l-5 6 l-5 -6 z"/>
+          <text class="svgmuted" x="170" y="190" text-anchor="middle">delivery</text>
+          <circle class="pinA" cx="181" cy="151" r="6"/>
+          <text class="svgtext" x="190" y="148">A · 3.2 km</text>
+          <circle class="pinB" cx="124" cy="153" r="6"/>
+          <text class="svgtext" x="114" y="150" text-anchor="end">B · 7 km</text>
+          <circle class="pinC" cx="299" cy="276" r="6"/>
+          <text class="svgtext" x="332" y="298" text-anchor="end">C · 24 km, dropped</text>
+        </svg>
+        <p style="font-size:13px;color:var(--muted)">C is past the cap and is dropped in step 2. A shop that says it covers 50 km is still held to 20 km. A shop that gives no radius is treated as covering the full 20 km.</p>
+      </div>
+      <div class="panel">
+        <h3>The score, worked for A and B</h3>
+        <div class="scoretbl">
+          <table>
+            <tr><th>What counts</th><th>Weight</th><th>How it's measured</th><th>A</th><th>B</th></tr>
+            <tr><td>Already joined us</td><td class="n">3.0</td><td class="why">yes 1, no 0</td><td class="n">0</td><td class="n">3.00</td></tr>
+            <tr><td>Reachable at its own email</td><td class="n">1.5</td><td class="why">not shared, not bounced</td><td class="n">1.50</td><td class="n">1.50</td></tr>
+            <tr><td>Rating and reviews</td><td class="n">1.0</td><td class="why">rating − 3 + log₁₀(reviews + 1)</td><td class="n">3.88</td><td class="n">3.11</td></tr>
+            <tr><td>Relationship</td><td class="n">1.2</td><td class="why">existing 2, known 1, new 0</td><td class="n">0</td><td class="n">2.40</td></tr>
+            <tr><td>Trust tier</td><td class="n">1.0</td><td class="why">T1 +2, T2 +1, T3 0, T4 −3</td><td class="n">0</td><td class="n">2.00</td></tr>
+            <tr><td>Track record</td><td class="n">0.4</td><td class="why">acceptance and on-time rate, smoothed toward 70% until about 5 orders</td><td class="n">0</td><td class="n">0</td></tr>
+            <tr><td>Distance</td><td class="n">−0.25</td><td class="why">per km</td><td class="n">−0.80</td><td class="n">−1.75</td></tr>
+            <tr class="tot"><td>Score</td><td></td><td></td><td class="n">4.58</td><td class="n">10.26</td></tr>
+            <tr><td>Ring</td><td></td><td></td><td class="n">0–5 km</td><td class="n">5–10 km</td></tr>
+          </table>
+        </div>
+        <p style="font-size:13.5px"><strong>A ranks first.</strong> B scores more than twice as high, but A is in a nearer ring, and the ring is compared first. A is a 4.8★ prospect with 120 reviews, trust tier 3 and no history. B is a joined, existing tier‑1 shop at 4.5★ with 40 reviews. Inside one ring the distance term still favours the nearer of two similar shops.</p>
+      </div>
+    </div>
+    <div class="modes3">
+      <div><b>auto</b>If the top candidate has joined us, the offer goes out at once. If the top candidate is a prospect, it must pass the cold-offer gates, or it waits for a person to approve.</div>
+      <div><b>semi</b>Candidates are saved but nobody is contacted. The order stays at “received” until CX approves the match on the order page, or approves escalation if nobody qualifies.</div>
+      <div><b>manual</b>Candidates are saved and a person sends each offer. The wave engine only keeps offers fresh and escalates. In every mode, if nobody is in range, an ingest of the area is requested while there is still time.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead">
+      <span class="eyebrow">Layer 4</span>
+      <h2>How an order finds a florist</h2>
+      <p class="lede">The reach-out engine forks on one question: has this shop joined us? It asks a person only where it has to.</p>
+    </div>
+    <div class="forkgrid">
+<pre class="mermaid">
+flowchart TD
+  A["Order arrives from Shopify"] --> W{"In the working set?"}
+  W -->|"no"| IDLE["Visible, never auto-worked"]
+  W -->|"yes"| B["Matched to nearby shops<br/>distance rings, then score"]
+  B -->|"nobody in range"| ING["Request ingest of the area"]
+  B --> C{"Has this shop joined us?"}
+  C -->|"in the network"| D["Offer sent by email + SMS"]
+  C -->|"never joined"| E{"Clears every cold-offer gate?"}
+  E -->|"yes"| D
+  E -->|"no"| F["Held for a person, with the gate named"]
+  F --> G["Approve the offer"] --> D
+  D --> H{"Do they answer?"}
+  H -->|"Accept"| PLACED["PLACED: address revealed, accept leg paid"]
+  H -->|"Decline"| REC["Recorded on the shop"]
+  H -->|"Silence"| NEXT["Next shop tried"]
+  REC --> MORE{"Anyone left to ask?"}
+  NEXT --> MORE
+  MORE -->|"yes"| D
+  MORE -->|"no"| CALL["The desk phones them"]
+  CALL -->|"Accepted"| PLACED
+  CALL -->|"No answer"| COOL["Logged, shop cools down"] --> CALL
+  PLACED --> PHOTO["Photo uploaded: delivered, delivery leg paid, Shopify updated"]
+  PLACED -->|"goes quiet"| ASK["Desk asks them for a photo"]
+  classDef ok fill:#E2EFEB,stroke:#0E5A4E,color:#0E5A4E
+  classDef human fill:#FBF3E4,stroke:#8A5A00,color:#6E4800
+  classDef done fill:#0E5A4E,stroke:#0E5A4E,color:#FFFFFF
+  classDef idle fill:#ECEEF0,stroke:#7A8590,color:#3D4650
+  class A,B,D,REC,NEXT,ING ok
+  class F,G,CALL,COOL,ASK human
+  class PLACED,PHOTO done
+  class IDLE idle
+</pre>
+      <div class="notes">
+        <div>
+          <h3>Cold-offer gates</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:6px">A shop that never joined is offered automatically only when all of these pass. Otherwise the offer waits for approval.</p>
+          <table>
+            <tr><td>Cold offers enabled</td><td>Settings</td></tr>
+            <tr><td>Payout at or under the ceiling</td><td>Settings, default €120</td></tr>
+            <tr><td>At least 6 hours to delivery</td><td>Hard-coded</td></tr>
+            <tr><td>Usable email address</td><td>Shop record</td></tr>
+            <tr><td>Has coordinates, not opted out, not excluded or lost</td><td>Shop record</td></tr>
+          </table>
+        </div>
+        <div>
+          <h3>Automation modes</h3>
+          <div class="modes">
+            <div><b>manual</b> A person sends each offer. Waves only keep offers fresh and escalate.</div>
+            <div><b>semi</b> The system proposes match, offer, reassign, customer emails and write-back. A person approves each.</div>
+            <div><b>auto</b> The wave engine runs unattended, up to the wave limit, stopping a reserve window before delivery.</div>
+          </div>
+        </div>
+        <div>
+          <h3>Money</h3>
+          <p style="font-size:13px">The trust tier sets the split, 70/30 by default or paid in full. The total floors to a whole euro. The accept leg pays on acceptance and the delivery leg on the photo, in every mode.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="ai">
+    <div class="sechead">
+      <span class="eyebrow">Layer 5</span>
+      <h2>Rules, AI and people</h2>
+      <p class="lede">Most of the loop is a deterministic workflow: the same input always gives the same result. The blue lane shows where a model reads or writes something. These are single model calls, each wrapped by a fixed rule that decides what happens with the output. No model chooses a shop, moves money or changes an order's status. Layer 6 opens up each blue box.</p>
+    </div>
+    <div class="loopscroll">
+      <div class="lanes">
+        <div></div>
+        <div class="ph sup">Supply</div><div class="ph">Intake</div><div class="ph">Match</div><div class="ph">Reach-out</div><div class="ph">Fulfilment &amp; pay</div><div class="ph">Settle &amp; write-back</div>
+
+        <div class="lane rules">RULES<small>Deterministic code</small></div>
+        <div class="cell"><div class="tk r">Follow-up schedule, send caps</div><div class="tk r">Ignore link-scanner clicks</div><div class="tk r">Stop on bounce, opt-out or join</div></div>
+        <div class="cell"><div class="tk r">Check webhook signature</div><div class="tk r">Parse and save, no duplicates</div><div class="tk r">Hourly reconcile</div><div class="tk r">Working-set gate</div></div>
+        <div class="cell"><div class="tk r">Geocode</div><div class="tk r">Filter, ring, score, top 3<small>See layer 3</small></div></div>
+        <div class="cell"><div class="tk r">Offer wave and timeouts</div><div class="tk r">Cold-offer gates</div><div class="tk r">One winner per order</div></div>
+        <div class="cell"><div class="tk r">Split by trust tier, issue card</div><div class="tk r">Order stage changes</div></div>
+        <div class="cell"><div class="tk r">Release delivery leg</div><div class="tk r">Write back to Shopify, customer emails</div></div>
+
+        <div class="lane ai">AI<small>Model calls via OpenRouter</small></div>
+        <div class="cell"><div class="tk a"><b>Is this a florist?</b><small>Only when the Maps category is unclear</small></div><div class="tk a"><b>Pick phone, email, owner</b><small>From candidates already scraped</small></div><div class="tk a"><b>Personalise the email</b><small>Language, name, opener. Falls back to the template</small></div><div class="tk a"><b>Draft replies to prospects</b><small>Guarded, see below</small></div></div>
+        <div class="cell"><div class="tk none">No AI</div></div>
+        <div class="cell"><div class="tk none">No AI</div></div>
+        <div class="cell"><div class="tk a"><b>Translate the bouquet recipe</b><small>Into the florist's language. Cached. Stays English on any doubt</small></div><div class="tk a"><b>Answer florist questions</b><small>Email, SMS or app. Guarded, see below</small></div></div>
+        <div class="cell"><div class="tk a"><b>Check the delivery photo</b><small>Claude and Gemini must agree: pass, review or fail. Recorded only, it does not hold the payout today</small></div></div>
+        <div class="cell"><div class="tk none">No AI</div></div>
+
+        <div class="lane human">PEOPLE<small>CX desk and staff</small></div>
+        <div class="cell"><div class="tk h">Send day-0 email from /discovery</div><div class="tk h">Edit copy and waits in /flows</div></div>
+        <div class="cell"><div class="tk h">Pick orders or tags for the working set</div></div>
+        <div class="cell"><div class="tk h">Approve the match (semi)</div><div class="tk h">Place an order nobody matched</div></div>
+        <div class="cell"><div class="tk h">Approve a held cold offer</div><div class="tk h">Phone the shop</div><div class="tk h">Take over an escalated thread</div></div>
+        <div class="cell"><div class="tk h">Ask a quiet florist for a photo</div><div class="tk h">Reassign if the shop is gone</div></div>
+        <div class="cell"><div class="tk h">Release held payouts</div><div class="tk h">Approve the write-back (semi)</div></div>
+      </div>
+    </div>
+    <div class="guards">
+      <div><b>Reply agent → guard decides</b>The model sorts the message into an intent and drafts a reply. A separate fixed rule decides whether to send it. Complaints, opt-outs, live order changes, money questions and requests for a person always go to a human. After a set number of replies a human takes over anyway.</div>
+      <div><b>Photo check → recorded, not trusted with money</b>An audit of past verdicts found the check not yet reliable enough to hold real payouts. The verdict is saved for review. The delivery leg is released on upload.</div>
+      <div><b>Translation → English on any doubt</b>Shopify's own translations come first. A model fills only the rest, and any failure or check miss leaves the line in English.</div>
+      <div><b>Recruiting copy → template fallback</b>The approved text comes from the catalog. The model only adapts language, name and opener. Any failure sends the plain template.</div>
+    </div>
+    <p class="lede" style="font-size:13px">Staff tools outside the loop also use models: the statistics chat (read-only database role) and draft translations in the message editor, which a person reviews before they go live.</p>
+  </section>
+
+__AGENTS__
+  <footer>Sources: <code>dashboard/lib/lifecycle.ts</code> (stages, branches, statuses), <code>docs/order-flow/3-system-order-to-florist.md</code> (the reach-out fork and gates), and <code>CLAUDE.md</code> (runtimes and services). Snapshot __DATE__ from branch <code>__BRANCH__</code>.</footer>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('data').textContent);
+  var ORDER = ['open', 'in-progress', 'planned', 'handled'];
+  var NAMES = { open: 'Open', 'in-progress': 'In progress', planned: 'Planned', handled: 'Handled', shipped: 'Shipped' };
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function md(s) { return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+  var AI = {
+    'recruit-enrol': 'A model may adapt the approved email to the shop\'s language, owner name and an opener from our research. Any failure sends the plain template. Shops reach this stage after ingest, where a model also judged unclear listings and picked phone, email and owner.',
+    'recruit-engaged': 'When a prospect replies, a model drafts the answer in the persona\'s voice. A fixed guard decides whether it is sent or escalated to a person.',
+    'reachout-send': 'The offer page shows the bouquet recipe in the florist\'s language. Shopify translations come first, a model fills the gaps, and any doubt leaves the line in English.',
+    'florist-accept': 'Florist questions by email, SMS or in the app get a model-drafted answer. A fixed guard sends only safe how-to answers and escalates the rest to CX.',
+    'deliver-photo': 'Claude and Gemini score the photo against the ordered items. The verdict is recorded for review and does not hold the payout today.'
+  };
+  var NOAI = { match: 'No AI here. The shop is chosen by a fixed rule: filters, distance rings, then a weighted score. See layer 3, “How one shop is chosen”.' };
+  function count(list) { var c = {}; list.forEach(function (b) { c[b.status] = (c[b.status] || 0) + 1; }); return c; }
+
+  var stages = [], all = [];
+  D.phases.forEach(function (p) { p.stages.forEach(function (s) { stages.push(s); all = all.concat(s.branches); }); });
+  var tot = count(all);
+  document.getElementById('stats').innerHTML =
+    '<span class="chip"><b>' + D.phases.length + '</b> phases</span>' +
+    '<span class="chip"><b>' + stages.length + '</b> stages</span>' +
+    '<span class="chip"><b>' + all.length + '</b> failure branches</span>' +
+    ORDER.map(function (k) { return tot[k] ? '<span class="chip s-' + k + '"><i class="dot"></i><b>' + tot[k] + '</b> ' + NAMES[k].toLowerCase() + '</span>' : ''; }).join('');
+
+  var loop = document.getElementById('loop');
+  loop.innerHTML = D.phases.map(function (p, i) {
+    return '<div class="phase ' + p.id + '"><div class="phead"><span class="num">' + (i + 1) + ' · ' + (p.id === 'supply' ? 'Recruiting' : 'Production') + '</span><h3>' + esc(p.label) + '</h3><p>' + esc(p.blurb) + '</p></div><div class="stages">' +
+      p.stages.map(function (s) {
+        var bs = s.branches.slice().sort(function (a, b) { return ORDER.indexOf(a.status) - ORDER.indexOf(b.status); });
+        return '<button class="stage kind-' + s.kind + (AI[s.id] ? ' has-ai' : '') + '" data-id="' + s.id + '" aria-pressed="false"><div class="top"><span class="lbl">' + esc(s.label) + '</span><span class="pill s-' + s.status + '">' + NAMES[s.status] + '</span></div><div class="short">' + esc(s.short) + '</div><div class="meta"><span class="surf">' + esc(s.surface) + (AI[s.id] ? ' <span class="aibadge">AI</span>' : '') + '</span><span class="bdots" title="' + bs.length + ' failure branches">' + bs.map(function (b) { return '<i class="dot s-' + b.status + '"></i>'; }).join('') + '</span></div></button>';
+      }).join('') + '</div></div>';
+  }).join('');
+
+  function branchList(host, list, title) {
+    var c = count(list), filter = 'all';
+    function render() {
+      var shown = list.filter(function (b) { return filter === 'all' || b.status === filter; })
+        .sort(function (a, b) { return ORDER.indexOf(a.status) - ORDER.indexOf(b.status); });
+      host.innerHTML = '<h3>' + title + '</h3><div class="filters"><button class="chip" data-f="all" aria-pressed="' + (filter === 'all') + '"><b>' + list.length + '</b> all</button>' +
+        ORDER.map(function (k) { return c[k] ? '<button class="chip s-' + k + '" data-f="' + k + '" aria-pressed="' + (filter === k) + '"><i class="dot"></i><b>' + c[k] + '</b> ' + NAMES[k].toLowerCase() + '</button>' : ''; }).join('') +
+        '</div><div class="blist">' + (shown.length ? shown.map(function (b) {
+          return '<div class="br"><div class="row"><span class="pill s-' + b.status + '">' + NAMES[b.status] + '</span><span class="id">' + esc(b.id) + ' · ' + b.milestone + '</span></div><div class="t">' + md(b.trigger) + '</div><div class="h">' + md(b.handling) + '</div></div>';
+        }).join('') : '<p class="empty">No failure branches recorded for this stage.</p>') + '</div>';
+      host.querySelectorAll('[data-f]').forEach(function (btn) { btn.addEventListener('click', function () { filter = btn.getAttribute('data-f'); render(); }); });
+    }
+    render();
+  }
+
+  var detail = document.getElementById('detail');
+  function select(id) {
+    var s = stages.find(function (x) { return x.id === id; });
+    var ph = D.phases.find(function (p) { return p.stages.indexOf(s) >= 0; });
+    loop.querySelectorAll('.stage').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-id') === id)); });
+    detail.innerHTML = '<div class="left"><span class="eyebrow">' + esc(ph.label) + ' · ' + esc(s.surface) + ' · ' + s.kind + '</span><h2>' + esc(s.label) + '</h2><div class="row" style="display:flex;gap:8px;align-items:center"><span class="pill s-' + s.status + '">' + NAMES[s.status] + '</span><span class="mono" style="color:var(--muted)">' + esc(s.id) + '</span></div>' +
+      (AI[s.id] ? '<div class="ainote"><b>AI in this stage.</b> ' + esc(AI[s.id]) + '</div>' : '') +
+      (NOAI[s.id] ? '<div class="ainote" style="border-left-color:var(--ok);background:var(--ok-soft)"><b style="color:var(--ok)">Deterministic.</b> ' + esc(NOAI[s.id]) + '</div>' : '') +
+      '<p class="desc">' + md(s.description) + '</p>' +
+      (s.code.length ? '<h3>Where it lives</h3><ul class="codes">' + s.code.map(function (c) { var m = c.match(/^(\S+)(.*)$/); return '<li><b>' + esc(m[1]) + '</b>' + esc(m[2]) + '</li>'; }).join('') + '</ul>' : '') +
+      '</div><div class="right"></div>';
+    branchList(detail.querySelector('.right'), s.branches, 'Failure branches');
+  }
+  loop.addEventListener('click', function (e) { var b = e.target.closest('.stage'); if (b) select(b.getAttribute('data-id')); });
+  select('match');
+})();
+</script>

@@ -1,0 +1,87 @@
+name: Garden daily report
+
+# Scores the garden's invented orders, reads the tone of its agents' messages and writes
+# docs/agent-factory/garden-reports/<date>.md onto the branch garden-reports (never `garden`,
+# which deploys). The scripts come from the `garden` branch, so the score judges the code that
+# is actually running. Trigger.dev (agents/clock/) dispatches it at 04:30 UTC, after the 04:00
+# weather plant; GitHub reads this file from main.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: garden-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+  GARDEN_API_KEY: ${{ secrets.GARDEN_OPENROUTER_API_KEY }}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse anything but the side-project database
+        run: |
+          case "$SUPABASE_URL" in
+            https://your-project-ref.supabase.co) echo "side-project database" ;;
+            *) echo "::error::GARDEN_SUPABASE_URL is not the side-project Supabase"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          ref: garden
+
+      - name: Check out the reports branch
+        run: |
+          if git ls-remote --exit-code origin refs/heads/garden-reports >/dev/null; then
+            git fetch --depth 1 origin garden-reports
+            git worktree add reports FETCH_HEAD
+          else
+            git worktree add --detach reports
+            git -C reports checkout --orphan garden-reports
+            git -C reports rm -rfq .
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: agents/garden/tone/requirements.txt
+
+      - run: node agents/garden/score.mjs
+
+      - name: Tone check (advice only)
+        continue-on-error: true
+        run: |
+          pip install -q -r agents/garden/tone/requirements.txt
+          node agents/garden/tone/pick.mjs "$RUNNER_TEMP/messages.json"
+          python agents/garden/tone/geval.py "$RUNNER_TEMP/messages.json" "$RUNNER_TEMP/tone.json"
+
+      # The tone measures in Grafana (agents/monitoring/) read these scores.
+      - name: Store the tone scores
+        continue-on-error: true
+        env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          GARDEN_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+        run: node agents/monitoring/store-tone.mjs "$RUNNER_TEMP/tone.json"
+
+      - run: node agents/garden/daily-report.mjs --out reports/docs/agent-factory/garden-reports --tone "$RUNNER_TEMP/tone.json"
+
+      - name: Commit the report
+        working-directory: reports
+        run: |
+          git config user.name "garden-report[bot]"
+          git config user.email "garden-report@users.noreply.github.com"
+          git add docs/agent-factory/garden-reports
+          git diff --cached --quiet && exit 0
+          git commit -qm "garden report $(TZ=Europe/Madrid date +%F)"
+          git push origin HEAD:refs/heads/garden-reports

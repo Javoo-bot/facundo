@@ -1,0 +1,252 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "facundo-ingest-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  // nodejs_compat: @supabase/supabase-js, @anthropic-ai/sdk, cheerio all rely
+  // on some node built-ins/globals under the hood.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Cron: sweep queued ingest_jobs rows every minute and enqueue them. This
+  // replaces the Mac-mini poller's polling loop. (Re-enabled for the Paid plan;
+  // remember to stop the Mac-mini poller at cutover so they don't both claim.)
+  "triggers": { "crons": ["* * * * *"] },
+
+  // No custom route: `facundo.example.org` is already claimed by the v0.2
+  // dashboard worker (see dashboard/wrangler.jsonc), so a path-scoped route on
+  // that hostname would collide. Using the stable workers.dev URL as the
+  // Shopify webhook target instead (DEPLOY.md confirms this works fine) — it
+  // doesn't move across re-deploys as long as the Worker name stays
+  // "facundo-ingest-worker". Revisit if a dedicated subdomain is ever wanted.
+
+  // Paid plan: raise the per-invocation CPU cap to the max so a full-city
+  // enrichment completes. Required — the default 30s is exceeded on a full
+  // city (see DEPLOY.md). Very large cities may still want per-florist fan-out.
+  "limits": { "cpu_ms": 300000 },
+
+  // NOTE: enrichment is CPU-heavy (cheerio parsing many pages per florist) and
+  // exceeds the Free plan's per-invocation CPU cap on a full city. Raising the
+  // CPU limit (`"limits": { "cpu_ms": 300000 }`) requires the Workers PAID
+  // plan. Alternatively, fan enrichment out per-florist to a queue so each
+  // florist gets its own invocation/CPU budget — see DEPLOY.md "CPU limit".
+
+  // One message per city → the queue consumer starts one Workflow instance.
+  "queues": {
+    "producers": [
+      { "queue": "ingest-city-queue", "binding": "INGEST_QUEUE" },
+      { "queue": "orders-queue", "binding": "ORDER_QUEUE" }
+    ],
+    "consumers": [
+      {
+        "queue": "ingest-city-queue",
+        "max_batch_size": 1,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "ingest-city-dlq"
+      },
+      {
+        "queue": "orders-queue",
+        "max_batch_size": 5,
+        "max_concurrency": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "orders-dlq"
+      }
+    ]
+  },
+
+  // Durable, per-city, step-checkpointed ingest, and per-order intake.
+  "workflows": [
+    {
+      "name": "city-ingest",
+      "binding": "CITY_WORKFLOW",
+      "class_name": "CityIngestWorkflow"
+    },
+    {
+      "name": "order-intake",
+      "binding": "ORDER_WORKFLOW",
+      "class_name": "OrderWorkflow"
+    },
+    {
+      "name": "enrich-batch",
+      "binding": "ENRICH_BATCH_WORKFLOW",
+      "class_name": "EnrichBatchWorkflow"
+    }
+  ],
+
+  // Warm-pool for Browser Rendering sessions (only used when render is enabled;
+  // the DO itself is cheap + safe to declare in local dev / deploy regardless).
+  "durable_objects": {
+    "bindings": [{ "name": "BROWSER_POOL", "class_name": "BrowserPool" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BrowserPool"] }],
+
+  // Non-secret vars. Secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+  // OPENROUTER_API_KEY, APIFY_TOKEN, SHOPIFY_WEBHOOK_SECRET) come from
+  // `wrangler secret put` / .dev.vars. The missing-webhook reconciliation sweep
+  // (reconcile.ts) additionally needs SHOPIFY_SHOP (e.g. "x.myshopify.com") and
+  // SHOPIFY_ADMIN_TOKEN — same creds dashboard/lib/shopifyWriteback.ts uses;
+  // when unset the sweep is a guarded no-op.
+  "vars": {
+    // Render fallback is OFF until Browser Rendering is provisioned + measured
+    // (Phase 1 was skipped). Flip to "true" AND uncomment the "browser" binding
+    // below after provisioning.
+    "ENABLE_BROWSER_RENDER": "false",
+
+    // ONE-SHOT: re-send the 28 to 30 Aug digest in the reworked format, so CX
+    // sees the new layout today rather than meeting it cold tomorrow morning.
+    // The list is the same one DEFAULT_RECIPIENTS carries, and everyone on it
+    // already had the OLD format for these days at 08:00, so this arrives as a
+    // deliberate second copy of a period they have seen.
+    //
+    // dailyDigest.ts::sendDigestReplay dedupes on the whole value, tag and all,
+    // so this sends EXACTLY ONCE however many cron ticks pass and however long
+    // these lines stay here. @v1 to @v3 went to one address while the layout
+    // was still being reviewed. Remove all three lines in the next change that
+    // touches this file; leaving them costs nothing but noise.
+    "DIGEST_REPLAY": "2026-08-28..2026-08-30@v4-all",
+    "DIGEST_REPLAY_TO": "owner@fc.example.com,marketing@fc.example.com,editor@fc.example.com,ops2@fc.example.com,staff@fc.example.com"
+  },
+
+  // Browser Rendering binding — PROVISION-LATER. Requires a paid plan with
+  // Browser Rendering enabled. Uncomment, then set ENABLE_BROWSER_RENDER=true:
+  // "browser": { "binding": "BROWSER" }
+
+  // ---- STAGING ---------------------------------------------------------------
+  // A second, fully separate deployment of this worker wired to the STAGING
+  // Supabase project and the staging dashboard (facundo-staging), so the
+  // staging environment runs the same automation loop production does — cron
+  // claims, queue consumers, CityIngestWorkflow (incl. the post-ingest
+  // re-match) and OrderWorkflow. Before it existed, queued staging ingest jobs
+  // sat forever (the Mac-mini poller only serves production) and nothing ever
+  // re-matched an escalated staging order — every "automatic" leg needed a
+  // human stand-in (discovered during the 2026-08-20 A1 final QA).
+  //
+  // Everything name-shaped is suffixed -staging: same Cloudflare account as
+  // production, so reusing a queue or workflow name would cross the streams.
+  // Deploys via .github/workflows/deploy-ingest-worker-staging.yml on pushes to
+  // the `staging` branch; runtime secrets come from GH Actions STAGING_*
+  // secrets (see that workflow's header).
+  "env": {
+    "staging": {
+      "name": "facundo-ingest-worker-staging",
+      "triggers": { "crons": ["* * * * *"] },
+      "limits": { "cpu_ms": 300000 },
+      "queues": {
+        "producers": [
+          { "queue": "ingest-city-queue-staging", "binding": "INGEST_QUEUE" },
+          { "queue": "orders-queue-staging", "binding": "ORDER_QUEUE" }
+        ],
+        "consumers": [
+          {
+            "queue": "ingest-city-queue-staging",
+            "max_batch_size": 1,
+            "max_concurrency": 5,
+            "max_retries": 3,
+            "dead_letter_queue": "ingest-city-dlq-staging"
+          },
+          {
+            "queue": "orders-queue-staging",
+            "max_batch_size": 5,
+            "max_concurrency": 10,
+            "max_retries": 3,
+            "dead_letter_queue": "orders-dlq-staging"
+          }
+        ]
+      },
+      "workflows": [
+        {
+          "name": "city-ingest-staging",
+          "binding": "CITY_WORKFLOW",
+          "class_name": "CityIngestWorkflow"
+        },
+        {
+          "name": "order-intake-staging",
+          "binding": "ORDER_WORKFLOW",
+          "class_name": "OrderWorkflow"
+        },
+        {
+          "name": "enrich-batch-staging",
+          "binding": "ENRICH_BATCH_WORKFLOW",
+          "class_name": "EnrichBatchWorkflow"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "BROWSER_POOL", "class_name": "BrowserPool" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BrowserPool"] }],
+      "vars": {
+        "ENABLE_BROWSER_RENDER": "false",
+        // postDashboardTick target — the staging dashboard, not production.
+        "DASHBOARD_URL": "https://facundo-staging.example.org"
+      }
+    },
+
+    // ---- GARDEN ----------------------------------------------------------------
+    // The side project's living simulation (docs/agent-factory/garden.md): the
+    // real order loop running against the side-project Supabase, fed with
+    // invented orders. It lives on a SEPARATE Cloudflare account, pinned here by
+    // account_id, so `--env garden` can never land on production's account.
+    // DASHBOARD_URL must stay set: without it postDashboardTick falls back to
+    // bo.fc.example.net. Its secrets deliberately omit SHOPIFY_SHOP and
+    // SHOPIFY_ADMIN_TOKEN, which makes the Shopify reconcile sweeps no-ops.
+    // `limits` is emptied because the top-level cpu_ms raise is inherited and
+    // the garden account is on the Free plan, which rejects any CPU limit.
+    // global_fetch_strictly_public: both garden workers sit on the same
+    // workers.dev subdomain, and without it every cron POST to the garden
+    // dashboard came back as error 1042, so the wave engine never ran (seen in
+    // wrangler tail, 2026-10-13).
+    "garden": {
+      "name": "facundo-ingest-worker-garden",
+      "account_id": "<your-account-id>",
+      "workers_dev": true,
+      "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+      "limits": {},
+      "triggers": { "crons": ["* * * * *"] },
+      // The pretend florists and clients (gardenActors.ts) need this binding and
+      // GARDEN_ACTORS below. Both exist only here, never at the top level, so
+      // production cannot run them (test/gardenActors.test.ts).
+      "ai": { "binding": "AI" },
+      "queues": {
+        "producers": [
+          { "queue": "ingest-city-queue-garden", "binding": "INGEST_QUEUE" },
+          { "queue": "orders-queue-garden", "binding": "ORDER_QUEUE" }
+        ],
+        "consumers": [
+          {
+            "queue": "ingest-city-queue-garden",
+            "max_batch_size": 1,
+            "max_concurrency": 2,
+            "max_retries": 3,
+            "dead_letter_queue": "ingest-city-dlq-garden"
+          },
+          {
+            "queue": "orders-queue-garden",
+            "max_batch_size": 5,
+            "max_concurrency": 5,
+            "max_retries": 3,
+            "dead_letter_queue": "orders-dlq-garden"
+          }
+        ]
+      },
+      "workflows": [
+        { "name": "city-ingest-garden", "binding": "CITY_WORKFLOW", "class_name": "CityIngestWorkflow" },
+        { "name": "order-intake-garden", "binding": "ORDER_WORKFLOW", "class_name": "OrderWorkflow" },
+        { "name": "enrich-batch-garden", "binding": "ENRICH_BATCH_WORKFLOW", "class_name": "EnrichBatchWorkflow" }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "BROWSER_POOL", "class_name": "BrowserPool" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BrowserPool"] }],
+      "vars": {
+        "ENABLE_BROWSER_RENDER": "false",
+        "DASHBOARD_URL": "https://facundo-dashboard-garden.your-subdomain.workers.dev",
+        // The digest ignores app_settings.test_mode and, unset, mails the real
+        // team (dailyDigest.ts DEFAULT_RECIPIENTS).
+        "DIGEST_TO": "owner+garden@fc.example.com",
+        // Same PostHog project as production; this tag is how the two are told apart.
+        "POSTHOG_ENVIRONMENT": "garden",
+        "GARDEN_ACTORS": "1"
+      }
+    }
+  }
+}

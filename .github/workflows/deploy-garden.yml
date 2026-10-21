@@ -1,0 +1,105 @@
+name: Deploy garden (Cloudflare)
+
+# Deploys the side project's garden (docs/agent-factory/garden-deploy.md): the
+# dashboard and the order worker, on the garden Cloudflare account, against the
+# side-project Supabase. Runs on pushes to `garden` and from the Actions tab.
+#
+# Every secret is GARDEN_-prefixed so it can never be confused with production's.
+# Deliberately absent: VAPID (push reaches real devices), SHOPIFY_* (real
+# customers), TELNYX_* (real phones), Airwallex.
+
+on:
+  push:
+    branches: [garden]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-garden
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.GARDEN_CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.GARDEN_CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse anything but the side-project database
+        env:
+          URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+        run: |
+          case "$URL" in
+            https://your-project-ref.supabase.co) echo "side-project database" ;;
+            *) echo "::error::GARDEN_SUPABASE_URL is not the side-project Supabase"; exit 1 ;;
+          esac
+
+  worker:
+    needs: guard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingest-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ingest-worker/package-lock.json
+      - run: npm ci
+      - run: npx wrangler deploy --env garden
+      - name: Runtime secrets
+        env:
+          SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.GARDEN_OPENROUTER_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.GARDEN_RESEND_API_KEY }}
+          OUTBOX_SECRET: ${{ secrets.GARDEN_OUTBOX_SECRET }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.GARDEN_POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.GARDEN_POSTHOG_HOST }}
+        run: |
+          node -e 'const k=["SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","OPENROUTER_API_KEY","RESEND_API_KEY","OUTBOX_SECRET","POSTHOG_PROJECT_TOKEN","POSTHOG_HOST"];require("fs").writeFileSync("/tmp/s.json",JSON.stringify(Object.fromEntries(k.filter(n=>process.env[n]).map(n=>[n,process.env[n]]))))'
+          npx wrangler secret bulk /tmp/s.json --env garden
+          rm /tmp/s.json
+
+  dashboard:
+    needs: guard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - name: Build (OpenNext for Cloudflare)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.GARDEN_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_INGEST_MODE: queue
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.GARDEN_POSTHOG_PROJECT_TOKEN }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.GARDEN_POSTHOG_HOST }}
+          NEXT_PUBLIC_POSTHOG_ENVIRONMENT: garden
+          # The client-facing face (dashboard/lib/brand.ts). Only this deploy sets it;
+          # staging and v2 stay Facundo.
+          NEXT_PUBLIC_BRAND: smart-design
+        run: npx opennextjs-cloudflare build
+      - run: npx wrangler deploy --env garden
+      - name: Runtime secrets
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.GARDEN_OPENROUTER_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.GARDEN_RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.GARDEN_RESEND_FROM }}
+          OUTBOX_SECRET: ${{ secrets.GARDEN_OUTBOX_SECRET }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.GARDEN_POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.GARDEN_POSTHOG_HOST }}
+        run: |
+          node -e 'const k=["SUPABASE_SERVICE_ROLE_KEY","OPENROUTER_API_KEY","RESEND_API_KEY","RESEND_FROM","OUTBOX_SECRET","POSTHOG_PROJECT_TOKEN","POSTHOG_HOST"];require("fs").writeFileSync("/tmp/s.json",JSON.stringify(Object.fromEntries(k.filter(n=>process.env[n]).map(n=>[n,process.env[n]]))))'
+          npx wrangler secret bulk /tmp/s.json --env garden
+          rm /tmp/s.json

@@ -1,0 +1,31 @@
+<!doctype html><html><body>
+<div id="t" contenteditable="true">start</div>
+<script>
+// Real clipboard payloads. Docs always prepends <meta> and wraps everything in
+// a bold-reset <b>; Chrome's own contenteditable uses <div> line wrapping,
+// &nbsp; and an empty <div><br></div> as a blank line.
+var DOCS = '<meta charset="utf-8"><b style="font-weight:normal" id="docs-internal-guid-1">'
+  + '<span style="font-weight:700">Bold run</span>'
+  + '<span style="font-style:italic"> and italic</span>'
+  + '<span style="text-decoration:underline"> and under</span></b>';
+var CHROME = '<div>line one&nbsp;here</div><div><br></div><div>line <b>two</b></div>';
+
+var out = [];
+var el = document.getElementById('t');
+[['docs', DOCS], ['chrome', CHROME]].forEach(function (pair) {
+  el.innerHTML = '';
+  el.focus();
+  var r = document.createRange();
+  r.selectNodeContents(el);
+  var s = getSelection();
+  s.removeAllRanges();
+  s.addRange(r);
+  document.execCommand('insertHTML', false, pair[1]);
+  out.push(pair[0] + '\t' + el.innerHTML);
+});
+
+var pre = document.createElement('pre');
+pre.id = 'out';
+pre.textContent = out.join('\n');
+document.body.appendChild(pre);
+</script></body></html>

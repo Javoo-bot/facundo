@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Facundo · Videos</title>
+<meta name="description" content="Facundo: agent-run fulfilment for high-value orders. One-minute overview plus PostHog, Grafana and Langfuse walkthroughs.">
+<meta property="og:image" content="https://javoo-bot.github.io/facundo/media/social-preview.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F8FAFC; --surface: #FFFFFF; --ink: #0F1722; --ink-soft: #3B4657; --ink-faint: #5B6777;
+    --line: #E1E7EF; --accent: #1F4FE0; --accent-ink: #1A43BF; --wash: #F3F6FE; --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-ink); text-decoration: underline; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--line); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; color: var(--ink); }
+  .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
+  .mark svg { width: 16px; height: 16px; }
+  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+  .btn:hover { text-decoration: none; border-color: var(--accent); color: var(--accent); }
+  .hero { padding: 48px 0 24px; }
+  .eyebrow { font: 500 12px/1 "IBM Plex Mono", monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 12px 0 12px; font-weight: 600; letter-spacing: -.01em; }
+  h1 span { color: var(--accent); }
+  .lede { color: var(--ink-soft); max-width: 680px; margin: 0; }
+  nav.jump { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 8px; }
+  nav.jump a { font-size: 14px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-soft); }
+  nav.jump a:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin: 20px 0; scroll-margin-top: 16px; }
+  section h2 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+  section p { margin: 0 0 16px; color: var(--ink-faint); font-size: 15px; }
+  video { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #0F1722; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .grid section { margin: 0; }
+  footer { color: var(--ink-faint); font-size: 14px; padding: 24px 0 48px; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="https://github.com/Javoo-bot/facundo">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h10M10.5 3 13 5.5 10.5 8M13 10.5H3M5.5 8 3 10.5 5.5 13"/></svg></span>
+      Facundo
+    </a>
+    <a class="btn" href="https://github.com/Javoo-bot/facundo">View the code on GitHub</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Videos</div>
+    <h1>Luxury orders. Local partners. <span>Run by a factory of AI agents.</span></h1>
+    <p class="lede">Facundo routes each high-value order to a trusted local partner, pays them in two parts against an AI-verified delivery photo, and hands a person only the cases the agents can't settle.</p>
+    <nav class="jump" aria-label="Videos on this page">
+      <a href="#overview">One-minute overview</a>
+      <a href="#posthog">PostHog</a>
+      <a href="#grafana">Grafana</a>
+      <a href="#langfuse">Langfuse</a>
+    </nav>
+  </div>
+
+  <section id="overview">
+    <h2>One-minute overview</h2>
+    <p>Made entirely in code with Remotion and its Claude Code agent skills.</p>
+    <video src="media/facundo-demo.mp4" controls playsinline preload="metadata"></video>
+  </section>
+
+  <div class="grid">
+    <section id="posthog">
+      <h2>PostHog</h2>
+      <p>Product analytics and session replay of the back office · 47 s</p>
+      <video src="media/posthog.mp4" controls playsinline preload="metadata"></video>
+    </section>
+    <section id="grafana">
+      <h2>Grafana</h2>
+      <p>Agent scorecards and orders that need a person · 36 s</p>
+      <video src="media/grafana.mp4" controls playsinline preload="metadata"></video>
+    </section>
+    <section id="langfuse">
+      <h2>Langfuse</h2>
+      <p>LLM traces, cost and latency per model · 22 s</p>
+      <video src="media/langfuse.mp4" controls playsinline preload="metadata"></video>
+    </section>
+  </div>
+</main>
+
+<footer class="wrap">
+  <span>Built by Javier Lobato</span>
+  <span><a href="https://www.linkedin.com/in/javier-lobato-menendez">LinkedIn</a> · <a href="https://github.com/Javoo-bot">GitHub</a></span>
+</footer>
+</body>
+</html>

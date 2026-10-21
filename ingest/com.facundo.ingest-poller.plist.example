@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent template for the ingest queue poller (see POLLER.md).
+
+  Copy to ~/Library/LaunchAgents/com.facundo.ingest-poller.plist and replace
+  the THREE placeholders below:
+    {{UV_PATH}}     absolute path to the `uv` binary  -> run `which uv`
+    {{INGEST_DIR}}  absolute path to this ingest/ dir  -> run `pwd` from ingest/
+    {{PATH}}        a PATH that includes uv + its tools -> run `echo $PATH`
+
+  Then load it:
+    launchctl load ~/Library/LaunchAgents/com.facundo.ingest-poller.plist
+  KeepAlive restarts it on crash; RunAtLoad + the LaunchAgents location start
+  it at login. Logs go to the two files under /tmp below.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.facundo.ingest-poller</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{UV_PATH}}</string>
+    <string>run</string>
+    <string>python</string>
+    <string>poll_jobs.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>{{INGEST_DIR}}</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd starts with a minimal PATH; `uv run` needs to find python and
+         friends, so give it a real one. -->
+    <key>PATH</key>
+    <string>{{PATH}}</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/facundo-ingest-poller.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/facundo-ingest-poller.err.log</string>
+</dict>
+</plist>

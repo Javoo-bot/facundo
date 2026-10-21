@@ -1,0 +1,307 @@
+{
+  "uid": "garden-agent-scorecard",
+  "title": "Agent scorecard",
+  "description": "Every agent against what good looks like in its file (agents/thinking/<id>.md). Built by agents/monitoring/push.mjs; edit the JSON there, not here.",
+  "tags": [
+    "garden"
+  ],
+  "timezone": "Europe/Madrid",
+  "editable": true,
+  "refresh": "15m",
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "schemaVersion": 39,
+  "links": [
+    {
+      "title": "Garden overview",
+      "type": "link",
+      "url": "/d/garden-overview"
+    },
+    {
+      "title": "One agent in detail",
+      "type": "link",
+      "url": "/d/garden-agent-detail"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "How to read this",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Each line is one thing an agent must do well, with the minimum written in its file. **Below minimum** is red. An agent below a minimum that *decides* two days running gets one deep-analysis card in the factory and an email to the owner. *Advice* measures, like tone, are shown but never raise anything. **Too few cases** means there was not enough work in the window to judge fairly. Click an agent to see its cases."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Every agent against its minimum, today",
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 28
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select agent, nick as \"Agent\", measure as \"Measure\", means as \"What good means\", case when decides then 'decides' else 'advice only' end as \"Kind\", case when value is null then '' when percent then round(value * 100, 1) || '%' else round(value, 2)::text end as \"Now\", minimum_text as \"Minimum\", cases as \"Cases\", window_text as \"Window\", case status when 'ok' then 'OK' when 'below minimum' then 'Below minimum' when 'not enough cases' then 'Too few cases' else 'Not measurable yet' end as \"Status\", coalesce(reason, '') as \"Why\" from agent_daily_metrics where day = monitoring_day(now()) order by nick, position"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Agent"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open this agent",
+                    "url": "/d/garden-agent-detail?var-agent=${__data.fields.agent}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Measure"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Now"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Minimum"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cases"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Window"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "OK": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Below minimum": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "Too few cases": {
+                        "color": "#8e8e8e",
+                        "index": 2
+                      },
+                      "Not measurable yet": {
+                        "color": "#5a5a5a",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 3,
+      "type": "state-timeline",
+      "title": "The last 14 days",
+      "description": "One line per measure. Green is at or above the minimum, red below it, grey not enough cases or not measurable yet. Each day is judged over the measure's own window.",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 20
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "select day::timestamp as time, nick || ' · ' || measure as metric, case status when 'ok' then 1 when 'below minimum' then 0 when 'not enough cases' then 2 else 3 end as value from agent_daily_metrics where day >= monitoring_day(now()) - 13 order by 1, 2"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Below minimum",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Too few cases",
+                  "color": "#8e8e8e",
+                  "index": 2
+                },
+                "3": {
+                  "text": "Not measurable yet",
+                  "color": "#5a5a5a",
+                  "index": 3
+                }
+              }
+            }
+          ]
+        }
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": false,
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    }
+  ]
+}

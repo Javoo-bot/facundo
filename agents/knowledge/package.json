@@ -1,0 +1,8 @@
+{
+  "name": "agents-knowledge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

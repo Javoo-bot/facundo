@@ -1,0 +1,50 @@
+# Local dev vars for `wrangler dev` / `opennextjs-cloudflare preview` — copy
+# to `.dev.vars` (gitignored) and fill in real values for local Worker
+# testing. In the actual staging deployment these are NOT read from this
+# file: the two NEXT_PUBLIC_* vars are supplied at build time (shell env
+# before `npm run cf:deploy`) and the rest are set via `wrangler secret put`
+# (except INGEST_MODE, which is a plain `vars` entry in wrangler.jsonc).
+# See DEPLOY.md.
+
+# Build-time (inlined into the client bundle by `next build` — NOT secret,
+# but still needs to be present wherever the build runs). NEXT_PUBLIC_INGEST_MODE
+# tells the client which ingest flow to use: "queue" makes RerunCityButton /
+# AddCityForm skip the keyword prefetch and enqueue a job for the Mac-mini
+# poller; unset (local dev) keeps the spawn-the-CLI flow.
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_INGEST_MODE=queue
+
+# PostHog (session replay + product analytics on both the staff console and the
+# florist PWA). The key is inlined at build time, so PostHog CANNOT be enabled at
+# runtime via `wrangler secret put` — a build without it has no analytics until
+# rebuilt. Recording additionally requires the "Record user sessions" toggle in
+# PostHog project settings, which is also the no-redeploy OFF switch. See DEPLOY.md.
+NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=phc_your-project-api-key
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+# Internal emails opted out of PostHog entirely (no replay, no events) so the
+# team's own clicks don't skew funnels. Comma-separated; unset = exclude nobody.
+# Separately, replay is off on localhost/staging by hostname — see lib/analytics.ts.
+NEXT_PUBLIC_POSTHOG_EXCLUDED_EMAILS=you@example.com
+
+# Secrets (set via `wrangler secret put <NAME>` for the real deployment).
+ALLOWED_EMAILS=you@example.com,teammate@example.com
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+RESEND_API_KEY=your-resend-api-key
+RESEND_FROM=Facundo <onboarding@resend.dev>
+
+# Server-side error sink (lib/serverAnalytics.ts, registered from instrumentation.ts): mirrors
+# every lib/monitor.ts captureError() call to a PostHog `dashboard_server_error` event, matching
+# the pattern ingest-worker/src/analytics.ts already ships. Read at runtime via plain
+# process.env — separate from the NEXT_PUBLIC_POSTHOG_* pair above, which is inlined at build
+# time for the browser client instead. Unset = captureError still logs to console.error as
+# before, no PostHog mirror.
+POSTHOG_PROJECT_TOKEN=phc_your-project-api-key
+POSTHOG_HOST=https://eu.i.posthog.com
+
+# Runtime flag for the two ingest/keywords route guards. "queue" makes
+# POST /api/ingest enqueue a job for the Mac-mini poller (the Python CLI is
+# not present on the deployment) and makes POST /api/keywords 503. Already set
+# as a plain `vars` entry in wrangler.jsonc; repeated here so local
+# `wrangler dev` / preview matches deployment behavior.
+INGEST_MODE=queue

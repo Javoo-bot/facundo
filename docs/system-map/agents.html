@@ -1,0 +1,95 @@
+  <section id="agents">
+    <div class="sechead">
+      <span class="eyebrow">Layer 6 · AI architecture</span>
+      <h2>Inside each AI step</h2>
+      <p class="lede">Each AI step has the same shape. None of them is an open-ended agent with tools. Code collects everything first, the model fills in one fixed form, and a fixed rule decides what to do with the answer.</p>
+    </div>
+
+    <div class="anatomy">
+      <div class="an"><span class="k">1</span><b>Trigger</b><span>A scrape, an inbound message, an upload</span></div>
+      <div class="an"><span class="k">2</span><b>Code collects the context</b><span>Crawler, regex, database facts, help articles. This is the only "tool use"</span></div>
+      <div class="an ai"><span class="k">3</span><b>One model call</b><span>Via OpenRouter. The model must answer by filling one fixed form</span></div>
+      <div class="an"><span class="k">4</span><b>A fixed rule decides</b><span>Thresholds, escalation lists, consensus</span></div>
+      <div class="an"><span class="k">5</span><b>Safe fallback</b><span>Keep, leave empty, send the template or hand to a person</span></div>
+    </div>
+    <p class="lede" style="font-size:13px">Every call goes through <code>openrouter.ts</code> or a sibling: 30 second timeout, up to 3 attempts on rate limits and server errors. A credit or key outage stops the whole run instead of spoiling rows.</p>
+
+    <div class="agentlist">
+
+      <article class="agent">
+        <header><span class="q">How does the model know it's a florist?</span><h3>Florist relevance check</h3><p>Mostly it doesn't need to. Free rules decide most places. The model judges only unclear ones, from the Google Maps listing alone.</p></header>
+        <div class="pipe">
+          <div><b>Input</b>A place from Google Maps (Apify): name, address, categories, rating, review count.</div>
+          <div><b>Free rules first</b><ol><li>A shop a person already acted on is always kept.</li><li>No Maps category at all: dropped. These are usually village names.</li><li>Category contains a local florist keyword: kept, unless a disqualifier appears (dried, wholesale, CBD, artificial, funeral).</li></ol><small>The keywords come from a per-country table. Its first fill was one model call. After that it costs nothing.</small></div>
+          <div class="m"><b>Model call</b>Sonnet 5. Sees the listing fields only, never the website. Told that a "no" is permanent, so prefer "yes" when unsure.<code>is_florist · confidence · reasoning</code></div>
+          <div><b>Decision</b>Only <code>is_florist</code> counts. Confidence is logged but not used. A "no" means the place is never saved.</div>
+          <div><b>Fallback</b>An error or a malformed answer keeps the place. If too many calls fail, the run stops.</div>
+        </div>
+        <div class="issues"><b>Problems seen in production</b><ul><li>Twelve cannabis shops passed the free rule with no model call. That is why disqualifiers now exist.</li><li>A funeral home got the free pass and received a real order offer.</li><li>One run saved 610 places, including 80 lottery kiosks and a royal palace garden.</li></ul></div>
+      </article>
+
+      <article class="agent">
+        <header><span class="q">What tools does it use to pick the phone, email and owner?</span><h3>Contact enrichment</h3><p>The tools are code, not the model. A crawler and pattern extractors find candidates. The model only picks the real one from that list.</p></header>
+        <div class="pipe">
+          <div><b>Crawl</b>Homepage plus up to 7 pages on the same site, ranked by URL: contact, legal notice, about, shop, team. 15 s and 1.5 MB per page. Plain fetch only, because the headless browser is switched off in production.</div>
+          <div><b>Extract without AI</b><ul><li>Email: text, <code>mailto:</code>, hidden-email decoding, schema.org, "name (at) domain" text. Junk domains and noreply are dropped.</li><li>Phone: <code>tel:</code>, schema.org, WhatsApp links, then a pattern match.</li><li>±180 characters of text around each candidate.</li></ul><small>The Google Maps phone is stored separately and never shown to the model.</small></div>
+          <div class="m"><b>Model calls</b><ul><li>Email: Haiku 4.5 picks the shop's own address or null.</li><li>Phone: Haiku 4.5 picks the main number or null.</li><li>Owner: Sonnet 5 reads about, contact and legal text (up to 8,000 characters) and returns owner name, one shop detail and the page language.</li><li>Online shop? Sonnet 5, only when no rule signal settles it.</li></ul></div>
+          <div><b>Decision</b>The pick is stored as returned. The prompts say "null rather than guess". Confidence is not used for email or phone.</div>
+          <div><b>Fallback</b>A failed call leaves the field empty and writes why in the enrichment notes. 90 s limit per shop. A repair mode re-runs spoiled rows.</div>
+        </div>
+        <div class="issues"><b>Problems seen in production</b><ul><li>A credit outage wrote a billing error onto 1,065 shops before the run stopped.</li><li>The crawl spent its 8 pages on cart pages and missed the address page.</li><li>122 out of 1,000 shops with no email had no about or contact page the crawler could find.</li><li>Shared head-office emails sent one order's offer to one inbox four times. Matching now merges shared inboxes.</li><li>CLAUDE.md says owner extraction runs on Haiku. The live worker uses Sonnet, so the docs are out of date here.</li></ul></div>
+      </article>
+
+      <article class="agent">
+        <header><span class="q">What problems does the LLM face when it personalises the email?</span><h3>Recruiting email personalisation</h3><p>The model never writes the pitch. It rewrites an approved email in the shop's language, adds the owner's name and an opener from research, and must keep everything else.</p></header>
+        <div class="pipe">
+          <div><b>Trigger</b>Staff pick up to 25 shops on /discovery and ask for drafts. 5 run at a time.</div>
+          <div><b>Context</b>The approved catalog email, rendered first. Shop name, rating, reviews, city. The owner name and shop detail found at enrichment. The language from Google Maps for that country.</div>
+          <div class="m"><b>Model call</b>Sonnet 5, because cheaper models sound stilted to a stranger in another language. Rules: keep the 70/30 split and the join link, invent nothing, no placeholders, greet by name only if known, add an English copy below.<code>Subject: … then the body</code></div>
+          <div><b>Check</b>The reply must start with <code>Subject:</code> or it is thrown away. Long dashes are removed afterwards.</div>
+          <div><b>Fallback</b>Any failure sends the approved template unchanged. Staff see the draft before sending.</div>
+        </div>
+        <div class="issues"><b>What makes it hard</b><ul><li><strong>Language.</strong> The target is the country's language, not the site's. Swiss and Austrian shops got English when their country was taken from the ingest city.</li><li><strong>Two languages can disagree.</strong> This route does not use the newer locale resolver. A shop with no saved locale gets an English brief and a local target language.</li><li><strong>Invented facts.</strong> Made-up owner names or "I read your reviews" when nobody did. The prompt forbids both, but no code checks for them.</li><li><strong>Format drift.</strong> On the first live run the model put five long dashes back in. Without the Subject line, sending falls back to a generic subject.</li><li><strong>Unchecked terms.</strong> Nothing verifies that the 70/30 split, the link or the length survived the rewrite.</li></ul></div>
+      </article>
+
+      <article class="agent">
+        <header><span class="q">How are the draft replies generated?</span><h3>Reply agent</h3><p>Each inbound message gets one engine run, whatever channel it came in on. The model drafts. A separate fixed guard decides whether the draft is sent.</p></header>
+        <div class="flow">
+          <div class="fstep"><b>Comes in</b>Email reply, SMS reply or in-app message</div>
+          <div class="fstep"><b>Before any AI</b>Drop duplicate events. Find the florist by email or phone, the order by reply token. Opt-out words close the thread. Auto-replies are stored, not answered. Unknown senders go to a person.</div>
+          <div class="fstep"><b>Context, all loaded up front</b>Up to 10 messages of the thread, the persona for the florist's language. Support: this order's facts (payout, photo verdict, address, recipient) and 11 published help answers. Recruiting: the pitch and 7 approved facts.</div>
+          <div class="fstep m"><b>One model call</b>Sonnet 5 (a setting). Fills one form:<code>intent · reply_text · language · confidence · escalate · facts_asserted</code></div>
+          <div class="fstep g"><b>The guard</b>The draft goes to a person if any of these fire:<ol><li>An open issue on the order</li><li>An intent that always escalates: complaint, opt-out, wants a person, order change, delivery problem, terms, pricing, legal, unclear</li><li>Asked "are you a bot?" and the reply doesn't admit it</li><li>3 automatic replies already sent</li><li>The model flags it itself</li><li>Confidence below 0.75</li><li>A money amount not in the allowed facts, or a promise phrase</li></ol></div>
+          <div class="fstep"><b>Goes out</b>Sent as the persona by email (Resend), SMS (Telnyx) or in the app. The first reply says it is automated. If held, it is saved as a draft and the thread lands on the CX desk.</div>
+        </div>
+        <div class="intents"><div><b>Recruiting intents (10)</b>interested, logistics, pricing, legal, complaint, opt-out, wants a person, asked if AI, not now, unclear</div><div><b>Support intents (13)</b>order status, payout status, photo help, how it works, app how-to, delivery problem, change request, terms, complaint, opt-out, wants a person, asked if AI, unclear</div></div>
+        <div class="issues"><b>Known gaps</b><ul><li><strong>Reads the oldest 10 messages</strong>, not the latest (<code>agentTurn.ts:147</code>). A long thread loses its recent context.</li><li><strong>Escalated threads still get AI replies.</strong> Nothing in the turn checks whether the thread is already waiting for a human, so a new message can be auto-answered if it passes the guard.</li><li>Facts are read once at the start of the turn. If the order changes mid-turn, the reply can be stale. Marked open in the lifecycle map.</li><li>The specs name the main risk: a wrong intent label is the whole risk surface, because the guard trusts the label.</li></ul></div>
+      </article>
+
+      <article class="agent">
+        <header><span class="q">How does it answer florist questions as a chat?</span><h3>In-app support chat</h3><p>Same engine as the reply agent, opened from a chat box on the order page. App and email share one thread.</p></header>
+        <div class="chat">
+          <span class="eyebrow">Example turn, illustrative wording</span>
+          <div class="bubble f">Florist: when do I get the rest of the payment?</div>
+          <div class="sys">The app checks the order belongs to this florist, finds or opens the support thread, saves the question (max 4,000 characters), then runs the reply engine.</div>
+          <div class="sys m">The model sorts the question as <code>payout_status</code>. It answers from this order's payout facts and the published help: the delivery leg is released when the photo is uploaded.</div>
+          <div class="sys g">The guard passes it. The intent is safe, the confidence is high and every amount is in the allowed facts.</div>
+          <div class="bubble y">Assistant (automated): you'll receive the remaining 30% as soon as your delivery photo is uploaded…</div>
+          <div class="sys h">If the guard holds it, the florist sees nothing automatic. CX picks up the thread on the desk, replies, and the assistant takes over again with the reply count reset to zero.</div>
+        </div>
+        <div class="issues"><b>Worth knowing</b><ul><li>The chat appears only after the florist has accepted the order, and only when the florist chat setting is on.</li><li>The in-app path skips the opt-out keyword check that email and SMS have. Only the guard's opt-out intent catches it.</li><li>The florist never sees held drafts. Only sent and received messages show.</li></ul></div>
+      </article>
+
+      <article class="agent">
+        <header><span class="q">What does it use to get the delivery photo right?</span><h3>Delivery photo check</h3><p>A guide on screen before upload, a file check, then two vision models that compare the photo with the order's text. Today the result is recorded only.</p></header>
+        <div class="pipe">
+          <div><b>Before upload</b>Five rules above the button: everything in one frame, good light, plain background, sharp, taken at this delivery. Four sample tiles: one good, three bad (dark, blurry, cut off). No camera-only capture, so the photo library works too.</div>
+          <div><b>Upload</b>Max 8 MB. The real file bytes must be JPEG, PNG or WebP; HEIC is refused. Stored in R2. The order is marked delivered straight away. EXIF data is not read.</div>
+          <div class="m"><b>Two models vote</b>Claude Sonnet 5 and Gemini 2.5 Flash run in parallel. Each gets the photo plus a text list of the order, such as "2× Title (variant) [type] — recipe". Asked to be strict about blurry, generic, stock or partial photos.<code>matched · confidence · items found · items missing · notes</code><small>Two more models run in shadow mode with product reference photos. They never count.</small></div>
+          <div class="g"><b>Consensus</b><ul><li>A vote is review if confidence is under 0.7 or anything is missing</li><li>Both pass → pass</li><li>Both fail → fail</li><li>Any review, or pass versus fail → review</li><li>One model down → the other decides alone</li><li>Neither answered → review</li></ul></div>
+          <div><b>What it drives</b>Nothing about money since 2026-08-20. The delivery payout releases on upload. Staff see a QA-only panel, and the support assistant can quote the verdict.</div>
+        </div>
+        <div class="issues"><b>Why it doesn't gate payouts</b><ul><li>An audit of every early verdict found 5 out of 5 marked review, none pass or fail. Two were photos of shoe boxes on a couch that it still did not fail.</li><li>The voting models don't see the product photos, the recipe components or the add-on list. Only the shadow models get reference images.</li><li>No check for recycled or stock photos beyond the prompt, and no time or place check. Both are marked open in the lifecycle map.</li><li>The two voting calls have no timeout, and the upload waits for them.</li><li>Two code comments still say the verdict holds the payout. They have been wrong since 2026-08-20.</li></ul></div>
+      </article>
+    </div>
+  </section>

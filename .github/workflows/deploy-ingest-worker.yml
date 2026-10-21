@@ -1,0 +1,125 @@
+name: Deploy ingest worker (Cloudflare)
+
+# Deploys `ingest-worker/` — the Cron sweep, the Queue consumer, the
+# CityIngestWorkflow (ingest + enrichment repair) and the OrderWorkflow.
+#
+# WHY THIS EXISTS. Everything else in this repo ships on merge; the ingest
+# worker was the one piece that did not, and there was no sign of that anywhere
+# in the UI. It bit twice in one day on 2026-08-11:
+#
+#   1. The `mode` column landed and the repair feature was merged, but the
+#      worker kept running pre-merge code.
+#   2. #260 fixed the repair predicate (2 targets in a city that had 87) and
+#      merged at 20:43. The worker's last manual deploy was 19:51 — 52 minutes
+#      EARLIER — so re-running the repair produced the same wrong 2, and the
+#      code on main was provably correct the whole time.
+#
+# Both cost a debugging round trip to reach "it's merged but not deployed".
+# Making the deploy automatic is what makes "merged" mean "running" for the
+# worker the way it already does for the dashboard.
+#
+# TRIGGER: a `release-*` tag, matching deploy-v2.yml — as of 2026-08-21, same
+# as that workflow (see its header for the full history of why: this used to
+# be "push to v0.2", replaced because v0.2-as-a-branch added a whole downstream
+# merge dance for no benefit once a tag can mark "this commit on main is a
+# release" directly). The tag is what the worker and the dashboard deploy off
+# TOGETHER, in step — no `paths` filter here any more, deliberately: this
+# workflow used to skip itself when a push didn't touch `ingest-worker/**`,
+# but a release tag is a much rarer, deliberate event than every branch push
+# was, and the previous incident this workflow exists to prevent was exactly
+# "the worker running behind the dashboard it shares a database with" — an
+# unconditional deploy on every release tag is what actually guarantees that
+# can't happen again. `wrangler deploy` is idempotent, so redeploying
+# unchanged code costs a few seconds, not correctness.
+#
+# SECRETS. Needs only CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID, the same
+# pair deploy-v2.yml uses. The worker's RUNTIME secrets (SUPABASE_URL,
+# SUPABASE_SERVICE_ROLE_KEY, APIFY_TOKEN, OPENROUTER_API_KEY) are set once with
+# `wrangler secret put` and are NOT touched by a deploy — `wrangler deploy`
+# leaves existing secrets alone, so they never need to enter CI.
+
+on:
+  push:
+    tags: ["release-*"]
+  workflow_dispatch:
+
+# A second push while a deploy is in flight should supersede it, not race it:
+# two concurrent `wrangler deploy` runs can land in either order, so the older
+# commit could win and silently become production.
+concurrency:
+  group: deploy-ingest-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingest-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ingest-worker/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      # Gate the deploy on the worker's own checks rather than trusting that
+      # ci.yml already ran. ci.yml runs on branch pushes, not tag pushes, so a
+      # release-tag deploy (and a workflow_dispatch one) has no such guarantee,
+      # and "deployed something that doesn't typecheck" is not a state worth
+      # being one click from.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npx vitest run
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      # The daily digest (src/dailyDigest.ts) sends through Resend from inside
+      # this worker, so it needs its OWN copy of the key: a Cloudflare secret
+      # belongs to one Worker and cannot be read back or copied, so the
+      # dashboard's RESEND_API_KEY does nothing for it.
+      #
+      # This is the ONE production runtime secret that reaches the worker via CI
+      # rather than `set-worker-secrets.sh`, and it is here at the repo owner's
+      # explicit request. Everything else in DEPLOY.md's model still holds: the
+      # value is piped on stdin so it never appears on a command line or in
+      # `ps`, and `wrangler deploy` above still leaves existing secrets alone.
+      #
+      # Idempotent: `secret put` overwrites, so re-running a deploy just re-sets
+      # the same value. Guarded, so a repo without the secret still deploys and
+      # the digest simply stays a no-op ("resend-key-unset") instead of failing.
+      - name: Sync the digest Resend key onto the worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ -z "${RESEND_API_KEY}" ]; then
+            echo "RESEND_API_KEY is not set in repo secrets; the digest stays a no-op." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          printf '%s' "${RESEND_API_KEY}" | npx wrangler secret put RESEND_API_KEY --name facundo-ingest-worker
+          echo "- digest Resend key: set on facundo-ingest-worker" >> "$GITHUB_STEP_SUMMARY"
+
+      # Print what actually went live. The incident was diagnosed by comparing
+      # `wrangler deployments list` against a merge timestamp by hand; having
+      # the commit in the run log makes that a glance instead of an
+      # investigation.
+      - name: Record what shipped
+        run: |
+          echo "### Ingest worker deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ref: \`${GITHUB_REF_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- message: $(git log -1 --pretty=%s)" >> "$GITHUB_STEP_SUMMARY"

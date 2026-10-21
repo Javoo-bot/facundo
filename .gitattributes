@@ -1,0 +1,6 @@
+# Compared byte for byte by dashboard/lib/agents/registry.test.mjs.
+agents/thinking/** text eol=lf
+dashboard/lib/agents/** text eol=lf
+ingest-worker/src/agents.generated.ts text eol=lf
+# Shell scripts must keep LF endings or bash fails on Windows checkouts (core.autocrlf=true).
+*.sh text eol=lf

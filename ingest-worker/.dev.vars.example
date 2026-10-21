@@ -1,0 +1,11 @@
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+OPENROUTER_API_KEY=
+APIFY_TOKEN=
+DEV_TRIGGER=true
+ENABLE_BROWSER_RENDER=false
+SHOPIFY_WEBHOOK_SECRET=
+# Optional — only needed to arm reconcileMissingOrders (the missed-webhook sweep,
+# src/reconcile.ts). Same shop/token dashboard/lib/shopifyWriteback.ts uses.
+SHOPIFY_SHOP=
+SHOPIFY_ADMIN_TOKEN=

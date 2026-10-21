@@ -1,0 +1,121 @@
+name: Deploy v0.2 (Cloudflare)
+
+# Auto-deploys the dashboard to a SEPARATE Cloudflare Worker
+# (facundo-dashboard-v2 → facundo-v0-2.example.org, and the main domain
+# facundo.example.org — this IS production) on every push of a `release-*`
+# tag. Runs in parallel with staging; shares the same Supabase project and the
+# same GitHub secrets. Also runnable manually (workflow_dispatch).
+#
+# TAG, NOT BRANCH, as of 2026-08-21. This used to trigger on every push to a
+# `v0.2` branch that existed only to receive merges of main (see
+# `scripts/sync-v0.2.sh` in git history, and the "v0.2 is downstream only" CI
+# job this replaced) — every sync was a deploy, whether or not that was the
+# intent. A release tag makes "ship this commit to production" a deliberate,
+# named act instead of a side effect of keeping a branch in sync, and it can
+# be pushed straight off `main` — no separate branch to keep clean. See
+# deploy-ingest-worker.yml for why that workflow now shares this exact trigger
+# (the two must reach production from the same tag, in step — they share a
+# database).
+#
+# Uses the same secrets as deploy-staging.yml:
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Runtime secrets (SUPABASE_SERVICE_ROLE_KEY, ONGAGE_*)
+# must be set once on the v2 Worker via `wrangler secret put`. The allow-list
+# is NOT a secret here — it's the `allowed_emails` table, edited via /settings.
+
+on:
+  push:
+    tags: ["release-*"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build (OpenNext for Cloudflare)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Web-push public key (safe to expose — it's shipped to the browser).
+          # Inlined at build; the client shows "Push isn't configured" without it.
+          # Set the matching GitHub Actions secret: gh secret set NEXT_PUBLIC_VAPID_PUBLIC_KEY
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          # PostHog session replay + analytics. Inlined at build — CI has no
+          # .env.local, so without these the deployed bundle silently has no
+          # analytics until it's rebuilt (no runtime enable via wrangler secret).
+          # Set the matching secret: gh secret set NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+          NEXT_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+          # Internal emails opted out of PostHog entirely (no replay, no events),
+          # so the team's own traffic doesn't skew funnels or fill the replay list.
+          # Not a secret (private repo, and it ships to the browser anyway).
+          # Replay is separately off on localhost/staging by hostname (lib/analytics.ts).
+          NEXT_PUBLIC_POSTHOG_EXCLUDED_EMAILS: user@example.com
+          # Non-secret build-time client flag: makes RerunCityButton / AddCityForm
+          # enqueue ingest jobs (skip the keyword prefetch) for the Mac-mini poller,
+          # matching INGEST_MODE=queue on the Worker. CI has no .env.local, so it must
+          # be set here or the client never enters queue mode.
+          NEXT_PUBLIC_INGEST_MODE: queue
+        run: npx opennextjs-cloudflare build
+
+      # --env v2 IS LOAD-BEARING. wrangler.jsonc's TOP LEVEL is the STAGING
+      # worker, and deploy-staging.yml runs the same bare command from the same
+      # directory — so without --env this workflow deploys STAGING and reports
+      # success while bo.fc.example.net receives nothing. That is exactly what
+      # happened between 2026-08-17 (commit 65c5cdb8) and this change.
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env v2
+
+      # Inbound email for PRODUCTION: florist replies land in /conversations and
+      # /communications. Mirrors the staging step in deploy-staging.yml (tested
+      # end to end there on 2026-09-16). Every value is optional, so this step is
+      # a no-op until the PROD_* secrets exist:
+      #
+      #   PROD_RESEND_INBOUND_WEBHOOK_SECRET  signing secret of the production
+      #                                       email.received webhook pointing at
+      #                                       https://bo.fc.example.net/api/webhooks/resend-inbound
+      #   PROD_REPLY_TOKEN_SECRET             signs r+<token>@ reply addresses
+      #                                       (must differ from staging's)
+      #   PROD_INBOUND_EMAIL_DOMAIN           fc.example.net
+      #
+      # INBOUND_EMAIL_DOMAIN is the switch that makes outbound mail carry an app
+      # reply address. It goes last, and only once the migrations
+      # 2026-09-16-communications-received-status.sql (and the florist
+      # locale/phone one) have been applied to production.
+      - name: Set production inbound email secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROD_RESEND_INBOUND_WEBHOOK_SECRET: ${{ secrets.PROD_RESEND_INBOUND_WEBHOOK_SECRET }}
+          PROD_REPLY_TOKEN_SECRET: ${{ secrets.PROD_REPLY_TOKEN_SECRET }}
+          PROD_INBOUND_EMAIL_DOMAIN: ${{ secrets.PROD_INBOUND_EMAIL_DOMAIN }}
+        run: |
+          if [ -n "$PROD_RESEND_INBOUND_WEBHOOK_SECRET" ]; then
+            printf '%s' "$PROD_RESEND_INBOUND_WEBHOOK_SECRET" | npx wrangler secret put RESEND_INBOUND_WEBHOOK_SECRET --env v2
+          fi
+          if [ -n "$PROD_REPLY_TOKEN_SECRET" ]; then
+            printf '%s' "$PROD_REPLY_TOKEN_SECRET" | npx wrangler secret put REPLY_TOKEN_SECRET --env v2
+          fi
+          if [ -n "$PROD_INBOUND_EMAIL_DOMAIN" ]; then
+            printf '%s' "$PROD_INBOUND_EMAIL_DOMAIN" | npx wrangler secret put INBOUND_EMAIL_DOMAIN --env v2
+          else
+            echo "PROD_INBOUND_EMAIL_DOMAIN not set: inbound email stays off in production."
+          fi

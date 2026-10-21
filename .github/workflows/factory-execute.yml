@@ -1,0 +1,143 @@
+name: Factory executor (one card, one draft PR)
+
+# Works ONE open factory card from the garden queue and opens a draft PR into
+# garden. See agents/factory/README.md. Three jobs, each on its own fresh VM, so
+# the agent never holds what it does not need:
+#
+#   claim    garden DB key, read-only repo token: picks and claims the card, writes the brief
+#   agent    Claude token only, sudo removed: Claude Code works the card on a clone of garden
+#   publish  garden DB key + contents/pull-requests write: pushes factory/card-<id8>,
+#            opens the draft PR, records factory_runs
+#
+# The ephemeral runner is the sandbox (task 010: unfamiliar programs need a full
+# sandbox). Trigger.dev (agents/clock/) dispatches it at 07:00 and 13:00 UTC;
+# GitHub reads this file from main, so it lives there too.
+
+on:
+  workflow_dispatch:
+    inputs:
+      card:
+        description: Factory card id (empty = the oldest eligible card)
+        required: false
+        default: ""
+      executor_ref:
+        description: Branch holding the executor code (the agent always works on garden)
+        required: false
+        default: garden
+
+concurrency:
+  group: factory-execute
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  EXECUTOR_REF: ${{ inputs.executor_ref || 'garden' }}
+  RUN_DIR: /tmp/factory-run
+  NODE_OPTIONS: --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+
+jobs:
+  claim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      run_id: ${{ steps.claim.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXECUTOR_REF }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test the executor rules
+        run: node --test agents/factory/*.test.mjs
+      - name: Claim a card
+        id: claim
+        env:
+          SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          CARD: ${{ inputs.card }}
+        run: node agents/factory/execute-card.mjs --phase claim --runner local --dir "$RUN_DIR" ${CARD:+--card "$CARD"}
+      - if: steps.claim.outputs.run_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-in
+          path: ${{ env.RUN_DIR }}
+          retention-days: 7
+
+  agent:
+    needs: claim
+    if: needs.claim.outputs.run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXECUTOR_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: factory-in
+          path: ${{ env.RUN_DIR }}
+      - name: Install Claude Code (the box's version) and pstack
+        run: |
+          version=$(sed -n 's/^ARG CLAUDE_CODE_VERSION=//p' agents/factory/box/Dockerfile)
+          npm install -g "@anthropic-ai/claude-code@${version:?}"
+          git clone -q --depth 1 --branch v0.9.57 https://github.com/michael-denyer/pstack-claude "$RUNNER_TEMP/pstack-claude"
+          test -f "$RUNNER_TEMP/pstack-claude/plugins/pstack/skills/poteto-mode/SKILL.md"
+          echo "FACTORY_PSTACK=$RUNNER_TEMP/pstack-claude/plugins/pstack" >> "$GITHUB_ENV"
+      - name: Take sudo away from the agent
+        run: |
+          sudo rm -f /etc/sudoers.d/runner
+          if sudo -n true 2>/dev/null; then echo "sudo still works" >&2; exit 1; fi
+      - name: Work the card
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          FACTORY_MINUTES: "55"
+          FACTORY_BUDGET_USD: "5"
+          FACTORY_MAX_TURNS: "200"
+        run: node agents/factory/execute-card.mjs --phase agent --runner local --dir "$RUN_DIR"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-out
+          path: ${{ env.RUN_DIR }}/out
+          retention-days: 14
+
+  publish:
+    needs: [claim, agent]
+    if: always() && needs.claim.outputs.run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXECUTOR_REF }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: factory-in
+          path: ${{ env.RUN_DIR }}
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: factory-out
+          path: ${{ env.RUN_DIR }}/out
+      - name: Push, open the draft PR, record the run
+        env:
+          SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: node agents/factory/execute-card.mjs --phase publish --runner local --dir "$RUN_DIR"

@@ -1,0 +1,48 @@
+name: Factory sweep (garden)
+
+# Turns garden signals (escalated conversations, stuck working-set orders,
+# photo checks that did not pass, failed garden scores) into factory cards in
+# the side-project Supabase, and opens a deep-analysis card for any agent below
+# a minimum two days running. See agents/factory/sweep-signals.mjs.
+#
+# Trigger.dev (agents/clock/) dispatches it every 30 minutes; GitHub reads this
+# file from main. Garden secrets only; the script itself also refuses any URL
+# but the side project.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: factory-sweep
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_OPTIONS: --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Dispatches read this file from main, which does not carry the garden scripts.
+          ref: garden
+      # 24 strips TypeScript types, which the sweep needs to import the CX desk rules.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test the card rules
+        run: node --test agents/factory/*.test.mjs agents/monitoring/*.test.mjs
+      - name: Sweep
+        env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          GARDEN_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          # The garden's Langfuse project: Babel, Bloom, Oracle and Polyglot are
+          # measured from its traces (agents/monitoring/collect.mjs).
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.GARDEN_LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.GARDEN_LANGFUSE_SECRET_KEY }}
+          LANGFUSE_BASE_URL: ${{ secrets.GARDEN_LANGFUSE_BASE_URL }}
+        run: node agents/factory/sweep-signals.mjs

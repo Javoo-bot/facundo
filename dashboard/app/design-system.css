@@ -1,0 +1,690 @@
+/* Facundo Phase-0 design system — ported from docs/architecture/mvp.html.
+   Scope everything under .ds so existing dashboard pages are untouched.
+   Add a class="ds" (and optional data-theme) on the Phase-0 page roots. */
+.ds {
+  --bg: #F6F8F5; --surface: #FFFFFF; --surface-2: #EEF2EC;
+  --ink: #16211B; --ink-soft: #52625A; --ink-faint: #7C8A81;
+  --line: #DBE3DB; --line-strong: #C4D0C6;
+  --accent: #1F7A55; --accent-ink: #14563C; --bloom: #C13F79;
+  --tA: #1F7A55; --tB: #C13F79; --tC: #A8681A;
+  --tA-wash: #E7F1EB; --tB-wash: #F8E8F0; --tC-wash: #F5ECDC;
+  --neutral: #6B7A70; --neutral-wash: #EAEEEA;
+  --ok: #1F7A55; --warn: #B4771A; --crit: #C0392B;
+  /* Muted per-stage hues for the hybrid order-colour scheme (lib/orderVisual.ts).
+     Deliberately clear of red/amber, which are reserved for attention. */
+  --st-created: #64748B; --st-matched: #5B6BB5; --st-outreach: #8257A8;
+  --st-fulfilment: #2A8A82; --st-delivery: #3B7BB0; --st-delivered: #2F8F5B;
+  --shadow: 0 1px 2px rgba(20,40,30,.05), 0 6px 20px rgba(20,40,30,.06);
+  --device-bezel: #22282A;
+  --radius: 12px; --maxw: 1140px; --maxw-wide: 1440px; --readw: 46rem;
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  /* Inter, loaded and self-hosted by next/font in app/layout.tsx, which sets
+     --font-sans on <html>. The system stack stays behind it as the fallback
+     for the first paint of a cold cache and for anything that renders this
+     CSS outside the root layout. Keep in step with `fontFamily.sans` in
+     tailwind.config.ts — the two must not drift. */
+  --sans: var(--font-sans, "Inter"), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink); background: var(--bg); font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  .ds:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0E1512; --surface: #15201A; --surface-2: #1B2820;
+    --ink: #E8EFE9; --ink-soft: #A2B2A8; --ink-faint: #7B8C82;
+    --line: #263429; --line-strong: #33463A;
+    --accent: #52BD8A; --accent-ink: #7FD4AA; --bloom: #E37AAB;
+    --tA: #52BD8A; --tB: #E37AAB; --tC: #D6A250;
+    --tA-wash: #14261C; --tB-wash: #2A1622; --tC-wash: #271E10;
+    --neutral: #8C9A90; --neutral-wash: #1E2822;
+    --ok: #52BD8A; --warn: #D6A250; --crit: #E06A5C;
+    --st-created: #8B98AB; --st-matched: #8B97D8; --st-outreach: #B48FD4;
+    --st-fulfilment: #4BB1A8; --st-delivery: #6FA8D6; --st-delivered: #55B57F;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.32);
+  }
+}
+.ds[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0E1512; --surface: #15201A; --surface-2: #1B2820;
+  --ink: #E8EFE9; --ink-soft: #A2B2A8; --ink-faint: #7B8C82;
+  --line: #263429; --line-strong: #33463A;
+  --accent: #52BD8A; --accent-ink: #7FD4AA; --bloom: #E37AAB;
+  --tA: #52BD8A; --tB: #E37AAB; --tC: #D6A250;
+  --tA-wash: #14261C; --tB-wash: #2A1622; --tC-wash: #271E10;
+  --neutral: #8C9A90; --neutral-wash: #1E2822;
+  --ok: #52BD8A; --warn: #D6A250; --crit: #E06A5C;
+  --st-created: #8B98AB; --st-matched: #8B97D8; --st-outreach: #B48FD4;
+  --st-fulfilment: #4BB1A8; --st-delivery: #6FA8D6; --st-delivered: #55B57F;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.32);
+}
+
+/* Smart design brand (lib/brand.ts; set only on the garden deployment).
+   Light only by design, so it outranks both dark blocks above:
+   html[data-brand] .ds is (0,2,1) against their (0,2,0). The same values live
+   in docs/design/client-brand-smart-design/tokens.css, the design source. */
+html[data-brand="smart-design"] .ds {
+  color-scheme: light;
+  --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #F8FAFC;
+  --ink: #0F1722; --ink-soft: #3B4657; --ink-faint: #5B6777;
+  --line: #E1E7EF; --line-strong: #C7D0DC;
+  --accent: #1F4FE0; --accent-ink: #1A43BF; --bloom: #1F4FE0;
+  --primary: #1F4FE0; --primary-hover: #1A43BF;
+  --tA: #1F4FE0; --tB: #5B6777; --tC: #3B4657;
+  --tA-wash: #F3F6FE; --tB-wash: #F1F5F9; --tC-wash: #F8FAFC;
+  --neutral: #5B6777; --neutral-wash: #F1F5F9;
+  --ok: #0E7F4B; --warn: #B4771A; --crit: #C0362C;
+  --st-created: #64748B; --st-matched: #3B5BD9; --st-outreach: #5B6777;
+  --st-fulfilment: #2A6F97; --st-delivery: #1F4FE0; --st-delivered: #0E7F4B;
+  --shadow: none;
+  --radius: 8px;
+  /* No monospace in this brand: every label, id and figure is Plex Sans with
+     tabular numbers. Pointing --mono at --sans restyles all ~40 rules that
+     use it without touching them. */
+  --mono: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+/* Labels in sentence case at a readable size (corporate-trust: nothing under
+   12px, no uppercase headers). The shared label classes plus the Tailwind
+   utilities pages use for the same job. */
+html[data-brand="smart-design"] .ds :is(.eyebrow, .mini-h, .badge, .data-table thead th, .vital-l, .fc-fact-l,
+  .fc-offer-h, .fc-addr-phone-a, .fc-recipe-h, .cs-lbl, .cs-rel, .coming-soon, .dp-inputs label span, .uppercase) {
+  text-transform: none;
+  letter-spacing: 0;
+}
+html[data-brand="smart-design"] .ds :is(.eyebrow, .mini-h, .data-table thead th, .vital-l, .fc-fact-l, .cs-lbl, .fc-recipe-h) {
+  font-size: .78rem;
+  font-weight: 500;
+}
+html[data-brand="smart-design"] .ds .badge { font-size: .72rem; font-weight: 500; }
+html[data-brand="smart-design"] .ds [class*="tracking-"] { letter-spacing: 0; }
+html[data-brand="smart-design"] .ds .font-mono { font-family: var(--sans); }
+/* Number tiles: one hairline, no coloured underline or shadow; only a tile
+   that is about a problem keeps its red edge. */
+html[data-brand="smart-design"] .ds .stat-tile { box-shadow: none; }
+html[data-brand="smart-design"] .ds .stat-tile:not(.border-b-crit) { border-bottom-width: 1px; border-bottom-color: var(--line); }
+
+/* Layout */
+.ds .page { max-width: var(--maxw); margin: 0 auto; padding: clamp(18px,4vw,32px); }
+/* Wider variant for screens that need more horizontal room (e.g. Home) —
+   identical to .page, only the max-width token differs. */
+.ds .page-wide { max-width: var(--maxw-wide); margin: 0 auto; padding: clamp(18px,4vw,32px); }
+.ds h1 { font-size: clamp(1.5rem,3vw,1.95rem); font-weight: 720; letter-spacing: -.02em; margin: 0; }
+.ds .eyebrow { font: 600 .72rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+.ds .mini-h { font: 700 .6rem/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* Buttons — ported from .wf-btn family */
+.ds .btn { font: 600 .82rem/1 var(--sans); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ds .btn:hover { border-color: var(--accent); filter: brightness(1.02); }
+.ds .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ds .btn-solid { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ds .btn-ghost { border-color: var(--line-strong); color: var(--ink-soft); background: transparent; }
+.ds .btn-warn { border-color: color-mix(in srgb, var(--crit) 50%, var(--line)); color: var(--crit); background: color-mix(in srgb, var(--crit) 7%, transparent); }
+/* Primary-action sizing, for a page whose whole job is one commitment (the
+   florist join form). `justify-content: center` is load-bearing: .btn is a
+   flex row that packs to the start, so a full-width button would otherwise
+   sit its label on the left. */
+.ds .btn-lg { font-size: 1rem; padding: 15px 22px; border-radius: 10px; justify-content: center; }
+.ds .btn-block { display: flex; width: 100%; }
+.ds .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* On/off switch — the join form's opening-hours rows. A styled checkbox, so
+   it keeps the native control's keyboard behaviour and form semantics for
+   free rather than reimplementing them on a div. */
+.ds .switch { position: relative; flex: none; appearance: none; -webkit-appearance: none; width: 38px; height: 22px; border-radius: 999px; background: var(--line-strong); border: none; cursor: pointer; transition: background .15s ease; }
+.ds .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: #fff; transition: transform .15s ease; }
+.ds .switch:checked { background: var(--accent); }
+.ds .switch:checked::after { transform: translateX(16px); }
+.ds .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Autocomplete listbox (components/florist/AddressAutocomplete.tsx). */
+.ds .ac-wrap { position: relative; }
+.ds .ac-list { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: var(--shadow); }
+.ds .ac-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: .85rem; line-height: 1.3; }
+.ds .ac-item[aria-selected="true"] { background: var(--tA-wash); }
+.ds .ac-item .ac-secondary { display: block; color: var(--ink-soft); font-size: .76rem; }
+
+/* Time picker (components/florist/TimeSelect.tsx) — our own listbox, built on
+   the .ac-list/.ac-item pattern above so it inherits the same surface, line
+   and green-wash tokens (and dark mode) as the address suggestions. It exists
+   because the native control's segment highlight is stock blue and unreachable
+   from CSS; see the accent-color note further down. */
+.ds .fc-time { display: inline-block; }
+.ds .fc-time-trigger { font: 400 .85rem/1 var(--sans); padding: 9px 10px; min-width: 74px; text-align: center; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
+.ds .fc-time-trigger:hover:not(:disabled) { border-color: var(--accent); }
+.ds .fc-time-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ds .fc-time-trigger:disabled { opacity: .55; cursor: default; }
+/* Wide enough for the value plus the scrollbar the 48-option list always has,
+   and never narrower than the trigger it hangs off. */
+.ds .fc-time-menu { right: auto; min-width: 100%; width: 92px; }
+.ds .fc-time-menu.is-flipped { top: auto; bottom: calc(100% + 4px); }
+.ds .fc-time-item { text-align: center; font-variant-numeric: tabular-nums; }
+/* Two different states, deliberately distinguishable: the green wash is the
+   time this field currently holds (aria-selected, styled by .ac-item above),
+   the green ring is where the keyboard cursor is. They coincide when the menu
+   first opens and separate as soon as you press an arrow. */
+.ds .fc-time-item[aria-selected="true"] { color: var(--accent-ink); font-weight: 700; }
+.ds .fc-time-item.is-active { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+/* Form controls — sensible token defaults so text boxes are dark-on-dark with
+   bright text (bare inputs would otherwise fall back to the browser's white).
+   `:where()` keeps these at zero specificity, so any explicit Tailwind utility
+   (bg-surface-2, border-none, etc.) still overrides them per-element. */
+.ds :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select) {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 8px;
+}
+.ds :where(input, textarea)::placeholder { color: var(--ink-faint); opacity: 1; }
+.ds :where(input:focus-visible, textarea:focus-visible, select:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ds :where(input[type="checkbox"], input[type="radio"]) { accent-color: var(--accent); }
+/* Native date inputs — the statistics range picker, the orders date filter and
+   the florist card's datetime fields, all staff-side — draw their picker popup
+   in the browser's own accent. `accent-color` is the only hook the browser
+   gives us for it, and it does not reach everything: the highlight on the
+   segment you click into is painted as a selection overlay and is unreachable
+   from CSS in Chrome 151 (::selection, ::-webkit-datetime-edit-*-field:focus
+   and :focus::-webkit-datetime-edit-*-field were each measured against it and
+   either no-op or composite under the blue rather than replacing it).
+   That limit is exactly why the florist-facing opening hours no longer use a
+   native control — see .fc-time-* above. These staff fields keep theirs: they
+   are seen by us, not by florists, and a bespoke date picker is a lot of
+   surface to own for a filter. `input[type="time"]` is listed for the day one
+   comes back; the app currently has none. */
+.ds :where(input[type="time"], input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
+  accent-color: var(--accent);
+}
+
+/* Cards */
+.ds .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+
+/* Badges/pills — ported from .spill/.offer/.cstate/.srcpill */
+.ds .badge { font: 700 .62rem/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ds .badge-neutral { color: var(--neutral); background: var(--neutral-wash); }
+.ds .badge-accent  { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.ds .badge-warn    { color: var(--warn);   background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.ds .badge-bloom   { color: var(--tB);     background: color-mix(in srgb, var(--tB) 12%, transparent); }
+.ds .badge-crit    { color: var(--crit);   background: color-mix(in srgb, var(--crit) 12%, transparent); }
+.ds .badge-amber   { color: var(--tC);     background: color-mix(in srgb, var(--tC) 13%, transparent); }
+/* Per-stage hue badges (hybrid scheme). crit/warn/bloom stay on the classes above. */
+.ds .badge-created    { color: var(--st-created);    background: color-mix(in srgb, var(--st-created) 14%, transparent); }
+.ds .badge-matched    { color: var(--st-matched);    background: color-mix(in srgb, var(--st-matched) 15%, transparent); }
+.ds .badge-outreach   { color: var(--st-outreach);   background: color-mix(in srgb, var(--st-outreach) 15%, transparent); }
+.ds .badge-fulfilment { color: var(--st-fulfilment); background: color-mix(in srgb, var(--st-fulfilment) 15%, transparent); }
+.ds .badge-delivery   { color: var(--st-delivery);   background: color-mix(in srgb, var(--st-delivery) 15%, transparent); }
+.ds .badge-delivered  { color: var(--st-delivered);  background: color-mix(in srgb, var(--st-delivered) 15%, transparent); }
+
+/* SLA countdown — ported from .sladot */
+.ds .sla { font: 700 .62rem/1 var(--mono); color: var(--crit); }
+.ds .sla-ok { color: var(--ink-soft); } .ds .sla-warn { color: var(--warn); } .ds .sla-crit { color: var(--crit); }
+
+/* Data table — ported from .otbl/.othead/.otr */
+.ds .data-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.ds .data-table thead th { font: 700 .58rem/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.ds .data-table tbody td { padding: 11px 12px; border-bottom: 1px solid var(--line); }
+.ds .data-table tbody tr:hover { background: var(--surface-2); cursor: pointer; }
+/* Compact variant for the florist inbox: tighter padding + a wrapping offer
+   badge so all five columns fit a phone width instead of overflowing. */
+.ds .fc-inbox-table td, .ds .fc-inbox-table th { padding: 9px 8px; }
+.ds .fc-inbox-table .badge { white-space: normal; text-align: left; }
+@media (max-width: 420px) {
+  .ds .fc-inbox-table td, .ds .fc-inbox-table th { padding: 8px 6px; }
+}
+.ds .row-tier-1 { box-shadow: inset 3px 0 0 var(--accent); }
+.ds .row-tier-2 { box-shadow: inset 3px 0 0 var(--tC); }
+.ds .row-tier-3 { box-shadow: inset 3px 0 0 var(--neutral); }
+.ds .row-tier-4 { box-shadow: inset 3px 0 0 var(--crit); }
+
+/* Key/value grid — ported from .kv */
+.ds .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: .9rem; margin: 0; }
+.ds .kv dt { color: var(--ink-faint); font: 600 .72rem/1.4 var(--mono); }
+.ds .kv dd { margin: 0; color: var(--ink); }
+
+/* Attention strip — ported from .attention */
+.ds .attention { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 13px; border-radius: 10px; background: color-mix(in srgb, var(--crit) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--crit) 25%, var(--line)); color: var(--crit); font: 700 .7rem/1 var(--mono); }
+
+/* Links reset inside .ds */
+.ds a { color: inherit; text-decoration: none; }
+.ds a:hover { color: var(--accent-ink); }
+
+/* ============================================================================
+   Staff console shared components (unified redesign — Foundation milestone).
+   Added for downstream screen engineers building on the staff shell; write
+   TSX only against these, no further shared-CSS edits needed. Token-based,
+   same conventions as the rest of this file. Do not remove/rename existing
+   classes above — florist + orders code depends on them.
+   ========================================================================= */
+
+/* Filter bar — a row of filter triggers above a data table/list. A trigger
+   shows an active-filter count as a small pill when count > 0. */
+.ds .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ds .filter-trigger { font: 600 .8rem/1 var(--sans); display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
+.ds .filter-trigger:hover { border-color: var(--accent); color: var(--ink); }
+.ds .filter-trigger.on { border-color: var(--accent); color: var(--accent-ink); background: var(--tA-wash); }
+.ds .filter-trigger .count { font: 700 .62rem/1 var(--mono); background: var(--accent); color: #fff; border-radius: 999px; padding: 1px 6px; min-width: 1.1rem; text-align: center; }
+
+/* Statistics date-range picker (components/statistics/DateRangePicker.tsx) —
+   a Shopify-style popover: Today / Yesterday / Custom down the left, two months
+   and the two typed endpoints on the right, Cancel/Apply in the footer.
+   Right-aligned to its trigger because the trigger sits at the right end of the
+   page header; a left-aligned 600px panel would run off the viewport. */
+.ds .dp-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; padding: 0; overflow: hidden; }
+.ds .dp-body { display: flex; align-items: stretch; }
+.ds .dp-presets { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border-right: 1px solid var(--line); background: var(--surface-2); min-width: 132px; }
+.ds .dp-preset { font: 600 .8rem/1 var(--sans); text-align: left; padding: 8px 10px; border-radius: 7px; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.ds .dp-preset:hover { background: var(--surface); color: var(--ink); }
+.ds .dp-preset.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.ds .dp-preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ds .dp-preset:disabled { color: var(--ink-faint); opacity: .45; cursor: not-allowed; background: transparent; }
+
+.ds .dp-cal-side { padding: 12px 14px 4px; display: grid; gap: 12px; }
+.ds .dp-inputs { display: flex; gap: 10px; }
+.ds .dp-inputs label { display: grid; gap: 4px; }
+.ds .dp-inputs label span { font: 600 .68rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+.ds .dp-inputs input { font: 500 .8rem/1 var(--sans); padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+.ds .dp-inputs input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.ds .dp-months { display: flex; gap: 18px; }
+.ds .dp-month { display: grid; gap: 2px; }
+.ds .dp-month-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; }
+.ds .dp-month-label { font: 650 .82rem/1 var(--sans); color: var(--ink); }
+.ds .dp-nav { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-soft); cursor: pointer; }
+.ds .dp-nav:hover { background: var(--surface-2); color: var(--ink); }
+.ds .dp-nav:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ds .dp-nav-spacer { width: 24px; }
+/* The left month's forward arrow: dead weight while the right month is on
+   screen (it carries the same action), the only way forward once the media
+   query below hides that month. */
+.ds .dp-nav-narrow { display: none; }
+.ds .dp-week { display: grid; grid-template-columns: repeat(7, 30px); gap: 2px; }
+.ds .dp-week-head span { font: 600 .66rem/28px var(--mono); text-align: center; color: var(--ink-faint); }
+.ds .dp-day { font: 500 .78rem/1 var(--sans); font-variant-numeric: tabular-nums; height: 28px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: var(--ink); cursor: pointer; padding: 0; }
+.ds .dp-day-blank { cursor: default; }
+.ds .dp-day:hover:not(:disabled) { background: var(--surface-2); }
+.ds .dp-day:disabled { color: var(--ink-faint); opacity: .45; cursor: not-allowed; }
+/* Today gets a ring, not a fill — a fill would be indistinguishable from
+   selection, and "which day is today" must stay readable while some other day
+   is the one selected. */
+.ds .dp-day.today { border-color: var(--line-strong); }
+/* Square inner days, rounded ends: the standard range shape, so a multi-day
+   selection reads as one continuous bar rather than a row of separate pills. */
+.ds .dp-day.in { background: var(--tA-wash); color: var(--accent-ink); border-radius: 0; }
+.ds .dp-day.in.end { background: var(--accent); color: #fff; border-color: var(--accent); border-radius: 7px; }
+
+.ds .dp-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface-2); }
+.ds .dp-summary { font: 600 .78rem/1 var(--sans); color: var(--ink); }
+.ds .dp-summary .dp-days { font-weight: 500; color: var(--ink-faint); }
+
+/* Under ~760px the second month and the typed inputs are dropped rather than
+   squeezed: one month plus the three presets still answers every question the
+   control exists for, and a 600px panel simply does not fit a phone. */
+@media (max-width: 760px) {
+  .ds .dp-pop { right: auto; left: 0; }
+  .ds .dp-month-second { display: none; }
+  .ds .dp-nav-narrow { display: inline-flex; }
+  .ds .dp-inputs { display: none; }
+}
+
+/* Skeleton loading — pulse guarded by prefers-reduced-motion (reduced-motion
+   users get a flat static block instead of an animated one). */
+.ds .skeleton { background: var(--surface-2); border-radius: 6px; }
+.ds .skeleton-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+@media (prefers-reduced-motion: no-preference) {
+  .ds .skeleton, .ds .skeleton-row .skeleton { animation: ds-skeleton-pulse 1.4s ease-in-out infinite; }
+}
+@keyframes ds-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* Severity row accents — mirrors the .row-tier-* inset-shadow mechanic, for
+   rows whose urgency is a severity (crit/warn) rather than a trust tier. */
+.ds .row-sev-crit { box-shadow: inset 3px 0 0 var(--crit); }
+.ds .row-sev-warn { box-shadow: inset 3px 0 0 var(--warn); }
+
+/* Hybrid order-tone rows (lib/orderVisual.ts::toneRowClass). Attention tones
+   (crit/warn) get the inset stripe AND a faint tint so they read at a glance;
+   the calm per-stage hues get the stripe only; done is a quiet neutral stripe.
+   The tint is applied to cells so it survives the tbody tr:hover rule. */
+.ds .row-tone-crit       { box-shadow: inset 3px 0 0 var(--crit); }
+.ds .row-tone-crit > td  { background: color-mix(in srgb, var(--crit) 8%, transparent); }
+.ds .row-tone-warn       { box-shadow: inset 3px 0 0 var(--warn); }
+.ds .row-tone-warn > td  { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.ds .row-tone-created    { box-shadow: inset 3px 0 0 var(--st-created); }
+.ds .row-tone-matched    { box-shadow: inset 3px 0 0 var(--st-matched); }
+.ds .row-tone-outreach   { box-shadow: inset 3px 0 0 var(--st-outreach); }
+.ds .row-tone-fulfilment { box-shadow: inset 3px 0 0 var(--st-fulfilment); }
+.ds .row-tone-delivery   { box-shadow: inset 3px 0 0 var(--st-delivery); }
+.ds .row-tone-delivered  { box-shadow: inset 3px 0 0 var(--st-delivered); }
+.ds .row-tone-done       { box-shadow: inset 3px 0 0 var(--line-strong); }
+.ds .row-tone-done > td  { color: var(--ink-soft); }
+
+/* Tabular numerals for anything where digits should line up (timers, money). */
+.ds .num { font-variant-numeric: tabular-nums; }
+
+/* Order-detail vitals strip — the glance facts + live timers on one dense band. */
+.ds .vitals { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ds .vital { background: var(--surface); padding: 11px 14px; min-width: 0; }
+.ds .vital-l { font: 600 .58rem/1.3 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); display: flex; gap: 5px; align-items: center; }
+.ds .vital-v { font-size: .95rem; font-weight: 700; letter-spacing: -.01em; margin-top: 3px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.ds .vital-v small { font-weight: 500; color: var(--ink-soft); font-size: .78rem; }
+.ds .vital-v a { color: var(--accent-ink); }
+@media (max-width: 1100px) { .ds .vitals { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 560px)  { .ds .vitals { grid-template-columns: repeat(2, 1fr); } }
+
+/* Florist order-page facts band — the decision/fulfilment facts up front
+   (distance · deliver-by · payout) on the florist PWA, mobile-first. */
+.ds .fc-offer-h { font: 700 .82rem/1.2 var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+.ds .fc-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ds .fc-fact { background: var(--surface); padding: 10px 12px; min-width: 0; }
+.ds .fc-fact-l { font: 600 .56rem/1.2 var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); }
+.ds .fc-fact-v { font-size: 1rem; font-weight: 750; letter-spacing: -.01em; margin-top: 3px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.ds .fc-fact-v small { display: block; font-weight: 500; color: var(--ink-soft); font-size: .7rem; letter-spacing: 0; }
+.ds .fc-fact.accent { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.ds .fc-fact.accent .fc-fact-v { color: var(--accent-ink); }
+.ds .fc-addr { font-size: .95rem; font-weight: 650; color: var(--ink); line-height: 1.35; }
+.ds .fc-addr-hint { font-size: .82rem; color: var(--ink-faint); }
+/* The recipient's number (post-accept only). Tapping copies it. Sized as a real
+   touch target — this gets tapped one-handed, at a doorstep, often in the rain —
+   and the number itself stays legible whether or not the copy ever works. */
+.ds .fc-addr-phone { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; min-height: 40px; padding: 4px 10px 4px 8px; justify-self: start; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; font: inherit; }
+.ds .fc-addr-phone:hover { border-color: var(--accent); }
+.ds .fc-addr-phone-n { font-size: .95rem; font-weight: 650; color: var(--accent-ink); letter-spacing: .01em; }
+.ds .fc-addr-phone-a { font: 600 .68rem/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); }
+/* Order body — one row per line item (thumbnail · title/description · recipe),
+   with a total-payout footer. Rows divided by a hairline. */
+.ds .fc-line { display: flex; gap: 12px; padding: 12px 13px; border-top: 1px solid var(--line); }
+.ds .fc-recipe-h { font: 700 .56rem/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); margin-bottom: 5px; }
+.ds .fc-line-note { padding: 11px 13px; border-top: 1px solid var(--line-2); font-size: .85rem; color: var(--ink-soft); }
+.ds .fc-cardicon { width: 60px; height: 60px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; font-size: 24px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); }
+.ds .fc-total { display: flex; align-items: center; justify-content: space-between; padding: 13px; border-top: 1px solid var(--line); font-weight: 650; }
+.ds .fc-total b { font-size: 1.15rem; color: var(--accent-ink); }
+/* Recipe rows: ingredient name on the left, "× N" quantity right-aligned. */
+.ds .recipe-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: .82rem; color: var(--ink); padding: 1px 0; }
+.ds .recipe-qty { font-family: var(--mono); font-size: .76rem; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+
+/* Command bar — order identity + journey + the primary action on one row. */
+.ds .cmdbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ds .cmdbar .cmd-id { display: flex; align-items: baseline; gap: 8px; }
+.ds .cmdbar .cmd-step { flex: 1; min-width: 280px; }
+
+/* Collapsible reference card — same shell as .card, a click-to-open summary.
+   Used on order-detail so secondary detail sits below the fold. */
+.ds .card-collapse { padding: 0; }
+.ds .card-collapse > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 8px; font: 700 .72rem/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); }
+.ds .card-collapse > summary::-webkit-details-marker { display: none; }
+.ds .card-collapse > summary:hover { color: var(--ink); }
+.ds .card-collapse > summary .peek { text-transform: none; letter-spacing: 0; font: 400 .82rem/1 var(--sans); color: var(--ink-faint); }
+.ds .card-collapse > summary .chev { margin-left: auto; color: var(--ink-faint); transition: transform .18s ease; }
+.ds .card-collapse[open] > summary .chev { transform: rotate(90deg); }
+.ds .card-collapse .collapse-body { padding: 2px 16px 16px; }
+@media (prefers-reduced-motion: reduce) { .ds .card-collapse > summary .chev { transition: none; } }
+
+/* Per-line-item recipe collapse — a small nested <details> inside an
+   already-expanded Line items card. Only the flower/component breakdown is
+   collapsed; everything else on the line item stays visible. */
+.ds .recipe-details > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: .78rem; color: var(--ink-faint); }
+.ds .recipe-details > summary::-webkit-details-marker { display: none; }
+.ds .recipe-details > summary::before { content: "▸"; display: inline-block; font-size: .65rem; transition: transform .15s ease; }
+.ds .recipe-details[open] > summary::before { transform: rotate(90deg); }
+.ds .recipe-details > summary:hover { color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .ds .recipe-details > summary::before { transition: none; } }
+
+/* "Coming soon" affordance — a small badge for screens/features not yet
+   built, plus the disabled visual every .btn should use while unavailable. */
+.ds .coming-soon { font: 700 .6rem/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); background: var(--surface-2); border-radius: 999px; padding: 3px 8px; display: inline-flex; align-items: center; }
+.ds .btn:disabled { opacity: .5; cursor: not-allowed; }
+.ds .btn:disabled:hover { border-color: var(--line-strong); filter: none; }
+
+/* Segmented toggle — e.g. list/map, today/week view switches. */
+.ds .segmented { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-2); border-radius: 9px; border: 1px solid var(--line); }
+.ds .segmented button { font: 600 .78rem/1 var(--sans); padding: 6px 12px; border-radius: 7px; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; }
+.ds .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.ds .segmented button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Ingredient/spec block — extends .spec above for a labeled list of
+   spec/ingredient rows (e.g. a bouquet's line items or a florist's hours). */
+.ds .spec-list { display: flex; flex-direction: column; gap: 6px; }
+.ds .spec-row { display: flex; justify-content: space-between; gap: 12px; font-size: .8rem; }
+.ds .spec-row dt { color: var(--ink-faint); }
+.ds .spec-row dd { margin: 0; color: var(--ink); font-weight: 600; }
+
+/* Status action bar — sticky row of primary/secondary actions for the
+   current status of an order/assignment/etc. */
+.ds .action-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line); }
+
+/* Line-item row — a product/order line with a thumbnail, used in order
+   detail and bouquet spec views. */
+.ds .line-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.ds .line-item:last-child { border-bottom: none; }
+.ds .line-item img, .ds .line-item .thumb { width: 40px; height: 40px; border-radius: 7px; object-fit: cover; background: var(--surface-2); flex-shrink: 0; }
+
+/* Timeline — vertical event list (e.g. Home's recent activity, an order's
+   audit trail). Dot color is left to the caller via an inline style or a
+   badge-* text color class on .timeline-event .dot. */
+.ds .timeline { position: relative; margin: 0; padding-left: 20px; border-left: 1px solid var(--line); list-style: none; }
+.ds .timeline-event { position: relative; padding-bottom: 16px; font-size: .84rem; }
+.ds .timeline-event:last-child { padding-bottom: 0; }
+.ds .timeline-event .dot { position: absolute; left: -24.5px; top: 3px; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+.ds .timeline-event time { font: 600 .68rem/1 var(--mono); color: var(--ink-faint); }
+
+/* NOTE (Plan 4): the florist PWA extends THIS file with the phone-frame (.screen.phone),
+   .stepper, .dropzone, .payout, .tx and offer-state classes — also ported from the mockups. */
+
+/* Florist PWA components (ported from the mockup florist screens) */
+.ds .ocard { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: var(--surface); box-shadow: var(--shadow); }
+.ds .spec { font-size: .8rem; color: var(--ink-soft); background: var(--surface-2); border-radius: 7px; padding: 8px 10px; }
+.ds .payout { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .82rem; color: var(--ink-soft); }
+.ds .payout b { color: var(--accent); }
+.ds .tx { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .78rem; padding: 9px 0; border-bottom: 1px solid var(--line); }
+/* Link affordances. .tx is also used as a clickable row (a.tx) — give it a hover. */
+.ds .link { color: var(--accent); text-decoration: none; }
+.ds .link:hover { text-decoration: underline; }
+.ds .link-subtle { color: var(--accent); text-decoration: none; font-size: .8rem; }
+.ds .link-subtle:hover { text-decoration: underline; }
+.ds a.tx, .ds .tx-link { color: inherit; text-decoration: none; cursor: pointer; }
+.ds a.tx:hover, .ds .tx-link:hover { color: var(--accent); }
+.ds .dropzone { display: block; border: 1.5px dashed var(--line-strong); border-radius: 9px; padding: 16px; text-align: center; font-family: var(--mono); font-size: .74rem; color: var(--ink-faint); background: var(--surface-2); cursor: pointer; }
+.ds .stepper { display: flex; gap: 4px; align-items: center; font-family: var(--mono); font-size: .62rem; color: var(--ink-faint); }
+.ds .stepper i { flex: 1; height: 4px; border-radius: 2px; background: var(--line-strong); }
+.ds .stepper i.on { background: var(--accent); }
+
+/* Florist walkthrough (/florist/guide) — public, sent to a shop directly.
+   Sits alongside the .fc-hiw-* block: that page sells the offer, this one
+   shows the app. The phone frame is CSS rather than baked into the images, so
+   re-capturing a screen never means re-cutting a device bezel. */
+.ds .fc-guide-wrap { max-width: 64rem; margin: 0 auto; padding: clamp(24px,5vw,60px) clamp(16px,4vw,32px) 90px; }
+.ds .fc-guide-lede { font-size: clamp(1rem,2vw,1.18rem); color: var(--ink-soft); max-width: 62ch; margin: 14px 0 0; }
+.ds .fc-guide h2 { font-size: clamp(1.3rem,3vw,1.7rem); font-weight: 700; letter-spacing: -.02em; margin: clamp(38px,7vw,60px) 0 6px; text-wrap: balance; }
+.ds .fc-guide-sub { color: var(--ink-soft); margin: 0 0 20px; max-width: 60ch; }
+.ds .fc-guide-pay { display: grid; gap: 12px; margin: clamp(30px,6vw,52px) 0; }
+.ds .fc-guide-legs { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 14px; }
+.ds .fc-guide-leg { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.ds .fc-guide-leg::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--c); }
+.ds .fc-guide-leg--a { --c: var(--accent); }
+.ds .fc-guide-leg--b { --c: var(--bloom); }
+.ds .fc-guide-pct { font-size: 2.5rem; font-weight: 740; letter-spacing: -.04em; line-height: 1; color: var(--c); font-variant-numeric: tabular-nums; }
+.ds .fc-guide-when { font-weight: 650; margin: 8px 0 4px; }
+.ds .fc-guide-note { color: var(--ink-soft); font-size: .9rem; margin: 0; }
+/* The split, shown rather than asserted — the two legs sum to the whole. */
+.ds .fc-guide-bar { display: flex; height: 44px; border-radius: 10px; overflow: hidden; font: 700 .82rem/44px var(--mono); color: #fff; }
+.ds .fc-guide-bar-a { flex: 0 0 70%; background: var(--accent); text-align: center; }
+.ds .fc-guide-bar-b { flex: 0 0 30%; background: var(--bloom); text-align: center; }
+.ds .fc-guide-sum { margin: 0; color: var(--ink-soft); font-size: .95rem; }
+.ds .fc-guide-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: clamp(20px,4vw,32px); }
+.ds .fc-guide-step { display: grid; grid-template-columns: auto 1fr; gap: 12px 18px; align-items: start; padding-bottom: clamp(20px,4vw,32px); border-bottom: 1px solid var(--line); }
+.ds .fc-guide-step:last-child { border-bottom: 0; padding-bottom: 0; }
+.ds .fc-guide-num { font: 700 .78rem/1 var(--mono); color: var(--accent); background: var(--tA-wash); width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; margin-top: 2px; }
+.ds .fc-guide-body h3 { font-size: 1.1rem; font-weight: 680; letter-spacing: -.015em; margin: 0 0 8px; }
+.ds .fc-guide-body p { margin: 0 0 9px; color: var(--ink-soft); max-width: 56ch; }
+.ds .fc-guide-body p:last-child { margin-bottom: 0; }
+.ds .fc-guide-shot { grid-column: 2; margin: 6px 0 0; }
+.ds .fc-guide-shot figcaption { font: 600 .68rem/1.4 var(--mono); letter-spacing: .04em; color: var(--ink-faint); margin-top: 8px; max-width: 230px; }
+.ds .fc-guide-noshot { font-size: .82rem; color: var(--ink-faint); border: 1px dashed var(--line-strong); border-radius: 12px; padding: 12px 14px; margin: 0; max-width: 230px; }
+@media (min-width: 820px) {
+  .ds .fc-guide-step { grid-template-columns: auto 1fr 230px; }
+  .ds .fc-guide-shot { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
+}
+.ds .fc-guide-phone { --bezel: var(--device-bezel); width: 100%; max-width: 230px; padding: 8px; border-radius: 28px; background: linear-gradient(160deg,#31383B,var(--bezel) 40%,#191E20); box-shadow: 0 1px 2px rgba(20,40,30,.14), 0 10px 26px rgba(20,40,30,.18); }
+.ds .fc-guide-phone--sm { max-width: 180px; margin: 0 auto 14px; }
+.ds .fc-guide-screen { position: relative; border-radius: 21px; overflow: hidden; background: #000; border: 1px solid rgba(255,255,255,.06); }
+.ds .fc-guide-screen::before { content: ""; position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 34%; height: 12px; border-radius: 99px; background: #0B0E0F; z-index: 2; }
+.ds .fc-guide-screen img { display: block; width: 100%; height: auto; }
+.ds .fc-guide-accept { display: grid; gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: clamp(16px,3vw,24px); box-shadow: var(--shadow); }
+.ds .fc-guide-accept p { margin: 0 0 10px; color: var(--ink-soft); }
+.ds .fc-guide-accept p:last-child { margin-bottom: 0; }
+@media (min-width: 760px) { .ds .fc-guide-accept { grid-template-columns: 230px 1fr; gap: 26px; } }
+.ds .fc-guide-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 16px; }
+.ds .fc-guide-card h3 { font-size: 1rem; font-weight: 670; margin: 0 0 6px; }
+.ds .fc-guide-card p { margin: 0; color: var(--ink-soft); font-size: .9rem; }
+.ds .fc-guide-footer { margin-top: clamp(42px,8vw,68px); padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: .86rem; }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Control panel action button (.op-act)
+
+   The `op-` prefix is a fossil: these were the Operator panel's styles, and
+   that panel was retired on 3 Sept 2026. Everything else in its block went with
+   it — the ranked-list layout, the countdown rail, the severity stripes. This
+   button survived because the Control panel's one call to action uses it.
+
+   Renaming it was deliberately NOT done: the class is referenced from the
+   Control panel and from the call card, and a rename touching both to fix a
+   prefix would be churn for no reader's benefit.
+   ─────────────────────────────────────────────────────────────────────────── */
+.ds .op-act { font: 600 .84rem/1 var(--sans); padding: 11px 17px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); white-space: nowrap; display: inline-block; transition: border-color .12s ease, background .12s ease, color .12s ease; }
+.ds .op-act:hover { border-color: var(--accent); background: var(--tA-wash); color: var(--accent-ink); }
+/* Solid only on the critical rows — so the top of the list looks different from
+   the bottom before a single word has been read. */
+.ds .op-act-solid { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ds .op-act-solid:hover { background: var(--accent); color: #fff; filter: brightness(1.06); }
+
+/* ============================================================================
+   The call card — /orders/[id]/call, reached from the Control panel's
+   "Contact florist" button. The full order record at /orders/[id] is
+   untouched and uses the classes above.
+
+   Token-based like everything else here, so both themes resolve. Semantic
+   colour is kept apart from the accent: green = ours / the accept path,
+   pink (--tB) = a shop that is not ours yet, red = broken or refused.
+   ========================================================================= */
+
+.ds .cs-min { max-width: 1060px; margin: 0 auto; padding: clamp(20px,4vw,46px) clamp(16px,4vw,28px) 70px; }
+
+/* The bar is a line of text on the page ground, not a card. */
+.ds .cs-minbar { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: clamp(18px,3vw,30px); font-size: .87rem; color: var(--ink-faint); }
+.ds .cs-minbar-id { font-family: var(--mono); font-weight: 700; color: var(--ink); font-size: .95rem; }
+.ds .cs-minbar-due { color: var(--warn); font-weight: 650; }
+.ds .cs-minbar-end { margin-left: auto; }
+
+/* One slab, split down the middle by a single hairline. */
+.ds .cs-slab { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); }
+@media (max-width: 880px) { .ds .cs-slab { grid-template-columns: minmax(0,1fr); } }
+.ds .cs-slab-l { padding: clamp(24px,3.4vw,38px); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 26px; }
+@media (max-width: 880px) { .ds .cs-slab-l { border-right: 0; border-bottom: 1px solid var(--line); } }
+.ds .cs-slab-r { padding: clamp(24px,3.4vw,38px); }
+
+.ds .cs-lbl { font: 700 .58rem/1 var(--mono); letter-spacing: .11em; text-transform: uppercase; color: var(--ink-faint); }
+.ds .cs-photo { display: block; width: 100%; height: 190px; object-fit: contain; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.ds .cs-item { font-size: 1.12rem; font-weight: 660; line-height: 1.3; letter-spacing: -.015em; margin: 11px 0 0; }
+.ds .cs-item small { display: block; font-size: .85rem; font-weight: 450; color: var(--ink-soft); margin-top: 5px; letter-spacing: 0; }
+.ds .cs-where { font-size: 1rem; line-height: 1.55; color: var(--ink-soft); }
+.ds .cs-where b { display: block; color: var(--ink); font-weight: 680; }
+
+/* The money follows the address rather than being pinned to the foot of the
+   column: pinned, it moved every time the right-hand side grew, and the left
+   panel must not react to anything that happens on the right. */
+.ds .cs-money { margin-top: 0; }
+.ds .cs-money-v { font-family: var(--mono); font-size: 2.15rem; font-weight: 600; color: var(--accent-ink); letter-spacing: -.025em; font-variant-numeric: tabular-nums; line-height: 1; margin-top: 9px; }
+.ds .cs-money-n { font-size: .82rem; color: var(--ink-faint); margin-top: 9px; line-height: 1.5; }
+
+.ds .cs-shop { font-size: clamp(1.7rem,3.6vw,2.3rem); font-weight: 720; letter-spacing: -.03em; line-height: 1.1; margin: 0; text-wrap: balance; }
+.ds .cs-shop-facts { margin-top: 12px; font-size: .93rem; color: var(--ink-soft); line-height: 1.55; }
+.ds .cs-shop-who { margin-top: 13px; font-size: .86rem; color: var(--ink-faint); }
+
+/* Member or cold lead — the one fact that changes how the whole call goes. */
+.ds .cs-rel { display: inline-flex; align-items: center; gap: 7px; font: 700 .66rem/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; padding: 6px 11px; border-radius: 999px; }
+.ds .cs-rel-cold { color: var(--tB); background: color-mix(in srgb, var(--tB) 12%, transparent); }
+.ds .cs-rel-member { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.ds .cs-rel-broken { color: var(--crit); background: color-mix(in srgb, var(--crit) 12%, transparent); }
+
+/* The number and how the call went, in one block. Dialling happens on a real
+   phone, so there is no call button — just the number, large. */
+.ds .cs-dialbar { margin-top: 26px; padding: 20px 22px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); display: grid; gap: 16px; }
+.ds .cs-dialrow { display: flex; align-items: center; gap: 16px 18px; flex-wrap: wrap; }
+.ds .cs-mintel { font-family: var(--mono); font-size: clamp(1.35rem,3vw,1.8rem); font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.ds .cs-outsel { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.ds .cs-outsel-l { font: 600 .78rem/1 var(--sans); color: var(--ink-soft); white-space: nowrap; }
+.ds .cs-sel { font: 600 .88rem/1 var(--sans); padding: 12px 13px; border-radius: 9px; min-width: 168px; cursor: pointer; }
+.ds .cs-follow { display: grid; gap: 13px; border-top: 1px solid var(--line-strong); padding-top: 16px; }
+.ds .cs-follow-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ds .cs-refused { display: grid; gap: 13px; }
+.ds .cs-words { width: 100%; box-sizing: border-box; font: 400 .9rem/1.45 var(--sans); padding: 11px 13px; min-height: 62px; resize: vertical; }
+.ds .cs-hint { font-size: .82rem; color: var(--ink-faint); line-height: 1.5; }
+
+/* What this shop has actually done. Facts and dates only — no advice on how to
+   run the call, and nothing about the deal that isn't in the data. */
+.ds .cs-hist { margin-top: 28px; }
+.ds .cs-hist-sum { font-size: .93rem; color: var(--ink-soft); margin: 10px 0 0; line-height: 1.55; }
+.ds .cs-hist-sum b { color: var(--ink); font-weight: 650; }
+.ds .cs-hist-list { margin: 15px 0 0; display: grid; gap: 11px; }
+.ds .cs-hist-row { display: grid; grid-template-columns: 128px minmax(0,1fr); gap: 14px; font-size: .89rem; line-height: 1.5; }
+.ds .cs-hist-when { font: 600 .75rem/1.65 var(--mono); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.ds .cs-hist-what { color: var(--ink-soft); }
+.ds .cs-hist-what b { color: var(--ink); font-weight: 650; }
+@media (max-width: 560px) { .ds .cs-hist-row { grid-template-columns: minmax(0,1fr); gap: 2px; } }
+
+.ds .cs-minfoot { margin-top: clamp(24px,4vw,38px); padding-top: 16px; border-top: 1px solid var(--line); font-size: .84rem; color: var(--ink-faint); display: flex; gap: 16px; flex-wrap: wrap; }
+
+/* The reply screen (/orders/[id]/reply) — one column the width of something
+   you read, so the writing box is the only thing on it. */
+.ds .cs-reply { max-width: 720px; margin: 0 auto; padding: clamp(20px,4vw,46px) clamp(16px,4vw,28px) 70px; }
+
+/* ---- The recruiting funnel, drawn as a cascade (/statistics/funnel) --------
+   Steps left to right with the conversion written on the arrow BETWEEN them,
+   because the drop is a fact about the transition, not about either step.
+   Lives here rather than inline because it needs a direction switch: on a
+   narrow screen the row becomes a column and the arrows turn to point down,
+   which inline styles cannot express. Horizontal scrolling was the other
+   option and is worse — a funnel you have to swipe through is a funnel whose
+   whole point (seeing every step at once) has been removed. */
+.ds .fn-flow { display: flex; align-items: flex-start; gap: 0; }
+.ds .fn-step { flex: 1 1 132px; min-width: 112px; display: grid; justify-items: center; gap: 7px; text-align: center; }
+
+/* The arrow column. `margin-top` centres it on the ring rather than on the
+   whole step (which includes the label below it). */
+.ds .fn-link { flex: 0 0 auto; display: grid; justify-items: center; gap: 3px; padding: 0 6px; margin-top: 22px; min-width: 78px; }
+.ds .fn-link-pct { font: 700 1rem/1 var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.ds .fn-link-of { font: 500 .68rem/1.3 var(--mono); color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ds .fn-link-rule { width: 100%; height: 0; border-top: 1.5px solid var(--line-strong); position: relative; margin: 3px 0; }
+.ds .fn-link-rule::after {
+  content: ""; position: absolute; right: -1px; top: -3.5px;
+  border: 4px solid transparent; border-left-color: var(--line-strong);
+}
+.ds .fn-link-drop { font: 600 .7rem/1.3 var(--mono); color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The worst transition is the answer the page exists to give, so it is the one
+   place colour is spent. */
+.ds .fn-link.is-worst .fn-link-pct { color: var(--crit); }
+.ds .fn-link.is-worst .fn-link-drop { color: var(--crit); }
+.ds .fn-link.is-worst .fn-link-rule { border-top-color: var(--crit); }
+.ds .fn-link.is-worst .fn-link-rule::after { border-left-color: var(--crit); }
+
+.ds .fn-ring { position: relative; width: 92px; height: 92px; }
+.ds .fn-ring svg { width: 100%; height: 100%; display: block; }
+.ds .fn-ring-val {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font: 650 1.12rem/1 var(--sans); color: var(--ink);
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+}
+.ds .fn-ring-val.is-long { font-size: .95rem; }
+.ds .fn-label { font-size: .82rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.ds .fn-sub { font: 500 .68rem/1 var(--mono); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 880px) {
+  .ds .fn-flow { flex-direction: column; align-items: stretch; }
+  .ds .fn-step { flex: none; grid-template-columns: 92px minmax(0,1fr); justify-items: start; text-align: left; align-items: center; gap: 4px 16px; }
+  .ds .fn-ring { grid-row: span 2; }
+  .ds .fn-label { align-self: end; }
+  .ds .fn-sub { align-self: start; }
+  /* The arrow now runs downward, tucked under the ring's centre. */
+  .ds .fn-link { margin: 0 0 0 24px; padding: 6px 0; justify-items: start; grid-template-columns: auto auto; align-items: baseline; gap: 4px 8px; }
+  .ds .fn-link-rule { width: 0; height: 22px; border-top: none; border-left: 1.5px solid var(--line-strong); grid-row: span 2; margin: 0 12px 0 20px; }
+  .ds .fn-link-rule::after { right: -4.5px; top: auto; bottom: -1px; border: 4px solid transparent; border-left-color: transparent; border-top-color: var(--line-strong); }
+  .ds .fn-link.is-worst .fn-link-rule { border-left-color: var(--crit); }
+  .ds .fn-link.is-worst .fn-link-rule::after { border-left-color: transparent; border-top-color: var(--crit); }
+}

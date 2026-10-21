@@ -1,0 +1,1118 @@
+{
+  "uid": "garden-overview",
+  "title": "Garden overview",
+  "description": "The garden in one page: the invented orders, what waits on the operator, the factory's fixes, AI spend, errors and the scheduled jobs. Built by agents/monitoring/push.mjs; edit the JSON there, not here.",
+  "tags": [
+    "garden"
+  ],
+  "timezone": "Europe/Madrid",
+  "editable": true,
+  "refresh": "15m",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "schemaVersion": 39,
+  "links": [
+    {
+      "title": "Agent scorecard",
+      "type": "link",
+      "url": "/d/garden-agent-scorecard"
+    },
+    {
+      "title": "One agent in detail",
+      "type": "link",
+      "url": "/d/garden-agent-detail"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Invented orders, latest scored day",
+      "description": "The garden plants about 20 invented orders a day and scores them the next morning. Passed means the order loop did what that order was planted to test.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select count(*) filter (where result = 'passed') as \"Passed\", count(*) filter (where result = 'failed') as \"Failed\" from garden_order_results where day = (select max(day) from garden_order_results where result <> 'not scored yet')"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Waiting for a person",
+      "description": "Conversations the agents stopped for a person, plus order steps waiting for a yes.",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 3,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select count(*) as \"Waiting\" from garden_open_decisions"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Agents below minimum",
+      "description": "Agents with a measure below its minimum today, with enough cases to judge. Two days running opens a factory card and emails the owner.",
+      "gridPos": {
+        "x": 9,
+        "y": 0,
+        "w": 3,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select count(distinct agent) as \"Agents\" from agent_daily_metrics where day = monitoring_day(now()) and decides and below"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "links": [
+            {
+              "title": "Open the scorecard",
+              "url": "/d/garden-agent-scorecard"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Factory fixes",
+      "description": "Cards the factory opened, one problem for one agent each, and the pull requests its fixes produced.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select count(*) filter (where status = 'open') as \"Open\", count(*) filter (where status = 'in-progress') as \"Being fixed\", count(*) filter (where status = 'done') as \"Done\", count(pr_url) as \"Pull requests\" from factory_cards"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "AI spend (garden key)",
+      "description": "What the garden's own OpenRouter key spent, in dollars. When today's spend reaches the limit the agents stop answering.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "garden-openrouter"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "garden-openrouter"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/api/v1/key",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "data",
+          "columns": [
+            {
+              "selector": "usage_daily",
+              "text": "Today",
+              "type": "number"
+            },
+            {
+              "selector": "usage_weekly",
+              "text": "This week",
+              "type": "number"
+            },
+            {
+              "selector": "limit",
+              "text": "Limit",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Errors in PostHog, last 7 days",
+      "description": "Order automation failures and dashboard server errors the garden sent to PostHog (events with environment garden).",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "garden-posthog"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "garden-posthog"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/api/projects/@current/query/",
+          "url_options": {
+            "method": "POST",
+            "body_type": "raw",
+            "body_content_type": "application/json",
+            "data": "{\"query\":{\"kind\":\"HogQLQuery\",\"query\":\"select count() from events where timestamp > now() - interval 7 day and properties.environment = 'garden' and event in ('order_automation_failed', 'order_match_failed', 'order_workflow_step_failed', 'dashboard_server_error')\"}}"
+          },
+          "root_selector": "$map(results, function($r){ {\"errors\": $r[0]} })",
+          "columns": [
+            {
+              "selector": "errors",
+              "text": "Errors",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Needs a PostHog key",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Scheduled jobs that failed, last 24 hours",
+      "description": "Runs of the garden's clock (Trigger.dev) that failed, crashed, timed out or expired.",
+      "gridPos": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "garden-trigger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "garden-trigger"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/api/v1/runs",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "page[size]",
+                "value": "100"
+              },
+              {
+                "key": "filter[createdAt][period]",
+                "value": "1d"
+              },
+              {
+                "key": "filter[status]",
+                "value": "FAILED,CRASHED,SYSTEM_FAILURE,TIMED_OUT,EXPIRED"
+              }
+            ]
+          },
+          "root_selector": "data",
+          "columns": [
+            {
+              "selector": "durationMs",
+              "text": "Failed runs",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Agent runs per day (Langfuse)",
+      "description": "How often each agent ran in the garden, from its Langfuse traces.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "garden-langfuse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "garden-langfuse"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/api/public/v2/metrics",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "query",
+                "value": "{\"view\":\"observations\",\"metrics\":[{\"measure\":\"count\",\"aggregation\":\"count\"}],\"dimensions\":[{\"field\":\"name\"}],\"timeDimension\":{\"granularity\":\"day\"},\"filters\":[{\"column\":\"type\",\"operator\":\"=\",\"value\":\"SPAN\",\"type\":\"string\"},{\"column\":\"name\",\"operator\":\"ends with\",\"value\":\".run\",\"type\":\"string\"}],\"fromTimestamp\":\"${__from:date:iso}\",\"toTimestamp\":\"${__to:date:iso}\"}"
+              }
+            ]
+          },
+          "root_selector": "data[name != \"\"]",
+          "columns": [
+            {
+              "selector": "time_dimension",
+              "text": "Day",
+              "type": "timestamp"
+            },
+            {
+              "selector": "name",
+              "text": "Agent",
+              "type": "string"
+            },
+            {
+              "selector": "count_count",
+              "text": "Runs",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "prepareTimeSeries",
+          "options": {
+            "format": "multi"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Conversations handed to a person, per day",
+      "description": "Each time Concierge or Cupid stopped and asked a person, by the reason it gave.",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "select day::timestamp as time, kind || ': ' || reason as metric, sum(conversations) as value from garden_conversation_escalations where day >= $__timeFrom()::date group by 1, 2 order by 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Invented orders, last two days",
+      "description": "Each invented order, what it was planted to test, what the loop should do and what it did.",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select day::text as \"Planted\", shopify_order_id as \"Order\", title as \"What it tests\", expected_outcome as \"Should end\", coalesce(actual_outcome, '') as \"Ended\", result as \"Result\", coalesce(notes, '') as \"Notes\", link from garden_order_results where day >= monitoring_day(now()) - 1 order by (result = 'failed') desc, day desc, shopify_order_id"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Result"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "passed": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "not scored yet": {
+                        "color": "transparent",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "link"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Open"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open the order",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "text": "Open",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Waiting for the operator",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select since as \"Since\", agent as \"Who stopped\", reason as \"Why\", link from garden_open_decisions order by since desc"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "link"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Open"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open in the garden dashboard",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "text": "Open",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Orders that need a person",
+      "description": "Garden orders from the last 14 days that were handed to a person or are past their delivery time.",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select coalesce(order_name, shopify_order_id) as \"Order\", issue as \"What is wrong\", delivery_at as \"Delivery\", link from garden_order_issues order by created_at desc"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "link"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Open"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open the order",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "text": "Open",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Factory cards",
+      "description": "Each card is one problem for one agent. A deep-analysis card (below_minimum) opens when an agent is below a minimum two days running.",
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "garden-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "select last_seen_at as \"Last seen\", agent as \"Agent\", title as \"Problem\", status as \"Status\", signals as \"Cases\", coalesce(last_outcome, '') as \"Last attempt\", pr_url from factory_cards order by (status in ('open', 'in-progress')) desc, last_seen_at desc"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pr_url"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pull request"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open the pull request",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "text": "Pull request",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Scheduled jobs, latest 100 (Trigger.dev)",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "garden-trigger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "garden-trigger"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/api/v1/runs",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "page[size]",
+                "value": "100"
+              }
+            ]
+          },
+          "root_selector": "data",
+          "columns": [
+            {
+              "selector": "createdAt",
+              "text": "When",
+              "type": "timestamp"
+            },
+            {
+              "selector": "taskIdentifier",
+              "text": "Job",
+              "type": "string"
+            },
+            {
+              "selector": "status",
+              "text": "Status",
+              "type": "string"
+            },
+            {
+              "selector": "durationMs",
+              "text": "Took",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Took"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "COMPLETED": {
+                        "color": "green",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "FAILED|CRASHED|SYSTEM_FAILURE|TIMED_OUT|EXPIRED",
+                      "result": {
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Errors in PostHog by kind, last 7 days",
+      "gridPos": {
+        "x": 12,
+        "y": 46,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "garden-posthog"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "garden-posthog"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/api/projects/@current/query/",
+          "url_options": {
+            "method": "POST",
+            "body_type": "raw",
+            "body_content_type": "application/json",
+            "data": "{\"query\":{\"kind\":\"HogQLQuery\",\"query\":\"select event, coalesce(properties.context, properties.step, '') as where_, count() as n, max(timestamp) as last from events where timestamp > now() - interval 7 day and properties.environment = 'garden' and event in ('order_automation_failed', 'order_match_failed', 'order_workflow_step_failed', 'dashboard_server_error') group by event, where_ order by n desc limit 50\"}}"
+          },
+          "root_selector": "$map(results, function($r){ {\"event\": $r[0], \"where\": $r[1], \"n\": $r[2], \"last\": $r[3]} })",
+          "columns": [
+            {
+              "selector": "event",
+              "text": "Error",
+              "type": "string"
+            },
+            {
+              "selector": "where",
+              "text": "Where",
+              "type": "string"
+            },
+            {
+              "selector": "n",
+              "text": "Times",
+              "type": "number"
+            },
+            {
+              "selector": "last",
+              "text": "Last seen",
+              "type": "timestamp"
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Needs a PostHog personal key (POSTHOG_PERSONAL_API_KEY)"
+        }
+      }
+    }
+  ]
+}

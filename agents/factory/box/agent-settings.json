@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(gh:*)",
+      "Bash(sudo:*)",
+      "Read(~/.ssh/**)",
+      "Read(**/.env)",
+      "Edit(**/.claude/**)",
+      "Write(**/.claude/**)",
+      "Edit(**/.github/**)",
+      "Write(**/.github/**)"
+    ]
+  }
+}

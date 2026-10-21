@@ -1,0 +1,69 @@
+name: CI
+
+# Runs typecheck/tests/lint/build on every PR (any base branch) and on pushes to
+# the long-lived branches, so regressions are caught before deploy time.
+#
+# `next build` is intentionally exercised here with placeholder Supabase public
+# env values. The real secrets are still injected by deploy workflows; this CI
+# step only proves the dashboard can compile.
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npx next lint
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build
+
+  ingest-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingest-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ingest-worker/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npx vitest run

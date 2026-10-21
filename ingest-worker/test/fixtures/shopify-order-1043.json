@@ -1,0 +1,30 @@
+{
+  "id": 5219483001,
+  "name": "#1043",
+  "order_number": 1043,
+  "created_at": "2026-07-13T09:12:00+02:00",
+  "currency": "EUR",
+  "subtotal_price": "99.90",
+  "total_price": "99.90",
+  "financial_status": "paid",
+  "fulfillment_status": null,
+  "customer": { "first_name": "Anna", "last_name": "R.", "email": "anna@example.com", "phone": "+34 600 111 222" },
+  "shipping_address": {
+    "name": "Marta S.", "phone": "+34 600 333 444",
+    "address1": "Carrer Nou 12", "address2": "", "city": "Girona",
+    "zip": "17001", "province": "Girona", "country": "Spain", "country_code": "ES",
+    "latitude": 41.9861, "longitude": 2.8250
+  },
+  "line_items": [
+    { "title": "Subtle Freshness", "variant_title": "Standard", "sku": "FC-SUBTLE-STD",
+      "product_id": 8801, "quantity": 1, "price": "99.90",
+      "properties": [ { "name": "Occasion", "value": "Birthday" }, { "name": "Greeting", "value": "Feliç aniversari! 🎉" } ] }
+  ],
+  "note": "Leave with the concierge if not home.",
+  "note_attributes": [
+    { "name": "delivery_date", "value": "2026-07-14" },
+    { "name": "delivery_window", "value": "10:00-14:00" }
+  ],
+  "tags": "birthday, girona",
+  "locale": "ca"
+}

@@ -1,0 +1,3 @@
+bouquet.jpg: "Bouquet of pink roses in a decorative purple net covering", Wikimedia Commons,
+https://commons.wikimedia.org/wiki/File:Bouquet_of_pink_roses_in_a_decorative_purple_net_covering.jpg
+License CC BY-SA 4.0. Used unchanged as the puppet florist's delivery photo.

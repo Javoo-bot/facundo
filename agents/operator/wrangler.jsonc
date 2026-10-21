@@ -1,0 +1,25 @@
+// Garden only. Pinned to the garden Cloudflare account, so a deploy cannot land
+// on production; src/garden.ts also refuses any database but the side project.
+{
+  "name": "facundo-garden-operator",
+  "main": "src/index.ts",
+  "account_id": "<your-account-id>",
+  "workers_dev": true,
+  "compatibility_date": "2026-10-01",
+  // global_fetch_strictly_public: the garden dashboard is on the same
+  // workers.dev subdomain; without it the fetch fails with error 1042.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // 06:45 Madrid is 04:45 UTC in summer and 05:45 UTC in winter; the code sends
+  // from whichever of the two is 06:45 in Madrid that day.
+  "triggers": { "crons": ["45 4 * * *", "45 5 * * *"] },
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "<your-kv-namespace-id>" }],
+  "observability": { "enabled": true },
+  "vars": {
+    "SUPABASE_URL": "https://your-project-ref.supabase.co",
+    "DASHBOARD_URL": "https://facundo-dashboard-garden.your-subdomain.workers.dev",
+    "OPERATOR_EMAIL": "owner+garden-operator@example.com",
+    "DIGEST_TO": "owner@example.com"
+  }
+  // Secrets: SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, OPERATOR_PASSWORD,
+  // OPERATOR_PASSPHRASE, RESEND_API_KEY (SETUP.md).
+}

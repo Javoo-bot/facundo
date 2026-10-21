@@ -1,0 +1,173 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // OpenNext-for-Cloudflare Worker entry point (produced by
+  // `opennextjs-cloudflare build`). This is the tool's default path —
+  // `.open-next` is a real directory each time the build tool runs, but the
+  // `cf:build` script (package.json) relocates it into `.open-next.nosync`
+  // and re-symlinks `.open-next` back to it immediately after a successful
+  // build, so this default path still resolves correctly and the artifact
+  // is iCloud-eviction-safe by the time `wrangler dev`/`deploy` read it. See
+  // open-next.config.ts for why a build-tool-level fix (via
+  // `buildOutputPath`) doesn't work here.
+  "main": ".open-next/worker.js",
+  "name": "facundo-dashboard-staging",
+  // Keep this within ~30 days of the actual deploy date; bump when
+  // upgrading @opennextjs/cloudflare / wrangler. See
+  // https://developers.cloudflare.com/workers/configuration/compatibility-dates/
+  "compatibility_date": "2026-07-01",
+  // nodejs_compat is required for the six `runtime = "nodejs"` API routes
+  // (they use node:child_process, node:crypto, etc.) — this is the whole
+  // reason this POC uses OpenNext instead of @cloudflare/next-on-pages
+  // (edge-only, would reject those routes).
+  // nodejs_compat_populate_process_env is default-on for compatibility
+  // dates >= 2025-04-01 (true here), but is listed explicitly so this stays
+  // correct even if compatibility_date is ever rolled back: it's what makes
+  // `wrangler secret put` values and the INGEST_MODE var readable via
+  // plain `process.env.X` in the existing route handlers, unmodified.
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Self-reference service binding used by OpenNext for internal
+      // fetches (e.g. revalidation). Name must match `name` above.
+      // https://opennext.js.org/cloudflare/caching
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "facundo-dashboard-staging"
+    }
+  ],
+  // Delivery-photo storage for the florist PWA (Plan 4). The florist upload
+  // route (POST /api/florist/photo) puts objects here via env.PHOTOS. Create
+  // the bucket once with `wrangler r2 bucket create facundo-photos`.
+  // `remote: true` makes local dev (via getPlatformProxy / initOpenNextCloudflareForDev
+  // with remoteBindings) proxy R2 reads+writes to the REAL facundo-photos bucket
+  // that staging + v2 use, so delivery photos are consistent across environments and
+  // with the shared Supabase DB. It's a no-op for `wrangler deploy` (deployed workers
+  // always bind the real bucket), so it does not change staging/v2 behaviour. Local
+  // dev needs Cloudflare auth (`wrangler login` or CLOUDFLARE_API_TOKEN).
+  "r2_buckets": [
+    { "binding": "PHOTOS", "bucket_name": "facundo-photos", "remote": true }
+  ],
+  // No R2 incremental-cache bucket and no Images binding: this POC has no
+  // ISR/SSG routes (every page/route here is `force-dynamic`) and ships no
+  // <Image> optimization pipeline, so there is nothing to cache/optimize —
+  // and the brief for this task is "no new infra" beyond the existing
+  // Supabase project. See open-next.config.ts for the matching (default,
+  // no-op) incremental cache choice.
+  "vars": {
+    // Non-secret. The NEXT_PUBLIC_* build-time values (the two Supabase ones
+    // plus NEXT_PUBLIC_INGEST_MODE) are inlined by `next build` into the
+    // client bundle and supplied via shell env at build time, NOT here — see
+    // DEPLOY.md. INGEST_MODE is a runtime var read by the two ingest routes:
+    // "queue" makes POST /api/ingest enqueue a job for the Mac-mini poller
+    // (ingest/poll_jobs.py) instead of spawning Python (impossible on
+    // Workers), and makes POST /api/keywords 503 (keyword derivation happens
+    // on the Mac mini). Safe in plain text (not a secret).
+    "INGEST_MODE": "queue"
+  },
+  // Custom domain for the v0.2 parallel environment. `example.org` is a Cloudflare zone on this
+  // account, so `custom_domain: true` provisions the DNS record + edge cert
+  // automatically on `wrangler deploy`. The workers.dev URL keeps working too.
+  "routes": [
+    // Staging gets its own subdomain — the bare facundo.example.org and the
+    // v0-2 subdomain belong to the v2 worker (see deploy-v2.yml / commit 1ad6919).
+    { "pattern": "facundo-staging.example.org", "custom_domain": true }
+  ],
+  // ---------------------------------------------------------------------------
+  // PRODUCTION — the `facundo-dashboard-v2` Worker, selected with
+  // `wrangler deploy --env v2` (what .github/workflows/deploy-v2.yml runs).
+  //
+  // WHY THIS IS AN ENVIRONMENT AND NOT THE TOP LEVEL. Both dashboard workflows
+  // run a bare `npx wrangler deploy` from this directory, so whichever identity
+  // the TOP LEVEL carries is the one BOTH of them deploy. Commit 65c5cdb8
+  // (2026-08-17) correctly repointed the top level at staging to fix
+  // deploy-staging.yml — and thereby silently repointed deploy-v2.yml at staging
+  // too. From then until this change, `bo.fc.example.net` received no deploys at
+  // all while both workflows reported success; the wave-refill shipped on
+  // 2026-08-20 never reached production, and orders escalated instead of being
+  // matched. Giving production its own named environment makes the two targets
+  // impossible to confuse again.
+  //
+  // EVERY BINDING BELOW IS REPEATED DELIBERATELY. `vars`, `services`,
+  // `r2_buckets` and `assets` are NON-INHERITABLE keys: an environment that
+  // overrides any one of them must redefine them ALL, or the deployed Worker
+  // silently loses the ones left out. Keep this block in step with the top level.
+  // https://developers.cloudflare.com/workers/wrangler/configuration/#non-inheritable-keys
+  "env": {
+    "v2": {
+      // Overrides the name wrangler would otherwise derive
+      // (`facundo-dashboard-staging-v2`). This exact script is the one the
+      // runtime secrets were `wrangler secret put` onto and the one every
+      // hostname below already resolves to, so secrets and routes survive.
+      "name": "facundo-dashboard-v2",
+      "assets": {
+        "directory": ".open-next/assets",
+        "binding": "ASSETS"
+      },
+      "services": [
+        {
+          // Must match this environment's `name`, not the top-level one.
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "facundo-dashboard-v2"
+        }
+      ],
+      "r2_buckets": [
+        { "binding": "PHOTOS", "bucket_name": "facundo-photos", "remote": true }
+      ],
+      "vars": {
+        "INGEST_MODE": "queue"
+      },
+      // Restored verbatim from the last commit that deployed this Worker
+      // correctly (a89fdab1, 2026-07-28), before 65c5cdb8 removed them.
+      // `example.org` is a zone on this account, so `custom_domain` provisions
+      // DNS + cert. `fc.example.net` is NOT (DNS is at GoDaddy, CNAME'd in via
+      // Cloudflare for SaaS custom hostnames), so those two use `zone_name` and
+      // must NOT use `custom_domain` — see DEPLOY.md "Adding a *.fc.example.net
+      // hostname". Which surface each hostname serves is decided by
+      // middleware.ts (lib/hostRouting.ts); a route only decides whether the
+      // request reaches the Worker at all.
+      "routes": [
+        { "pattern": "facundo-v0-2.example.org", "custom_domain": true },
+        { "pattern": "facundo.example.org", "custom_domain": true },
+        { "pattern": "florist.fc.example.net/*", "zone_name": "example.org" },
+        { "pattern": "bo.fc.example.net/*", "zone_name": "example.org" }
+      ]
+    },
+    // GARDEN: the side project's simulation (docs/agent-factory/garden.md), on a
+    // separate Cloudflare account pinned by account_id, with its own photo
+    // bucket so invented deliveries never mix with real ones. workers.dev only.
+    // Same non-inheritable-keys rule as v2: every binding is repeated.
+    "garden": {
+      "name": "facundo-dashboard-garden",
+      "account_id": "<your-account-id>",
+      "workers_dev": true,
+      "routes": [],
+      "assets": {
+        "directory": ".open-next/assets",
+        "binding": "ASSETS"
+      },
+      "services": [
+        { "binding": "WORKER_SELF_REFERENCE", "service": "facundo-dashboard-garden" }
+      ],
+      "r2_buckets": [
+        { "binding": "PHOTOS", "bucket_name": "facundo-garden-photos" }
+      ],
+      // The two base URLs keep email links on the garden: unset, lib/emailLinks.ts
+      // falls back to the production florist and backoffice hosts.
+      "vars": {
+        "INGEST_MODE": "queue",
+        "EMAIL_TRANSPORT": "resend",
+        "APP_BASE_URL": "https://facundo-dashboard-garden.your-subdomain.workers.dev",
+        "BACKOFFICE_BASE_URL": "https://facundo-dashboard-garden.your-subdomain.workers.dev",
+        // Same PostHog project as production; this tag is how the two are told apart.
+        "POSTHOG_ENVIRONMENT": "garden"
+      }
+    }
+  }
+}

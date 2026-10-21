@@ -1,0 +1,419 @@
+<style>
+  :root{
+    --bg:#F6F8F5; --surface:#FFFFFF; --surface-2:#EEF2EC;
+    --ink:#16211B; --ink-soft:#52625A; --ink-faint:#7C8A81;
+    --line:#DBE3DB; --line-strong:#C4D0C6;
+    --accent:#1F7A55; --accent-ink:#14563C; --bloom:#C13F79;
+    --neutral:#6B7A70; --neutral-wash:#EAEEEA;
+    --ok:#1F7A55; --warn:#B4771A; --crit:#C0392B;
+    --shadow:0 1px 2px rgba(20,40,30,.05), 0 6px 20px rgba(20,40,30,.06);
+    --radius:12px;
+    --mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --bg:#0E1512; --surface:#15201A; --surface-2:#1B2820;
+      --ink:#E8EFE9; --ink-soft:#A2B2A8; --ink-faint:#7B8C82;
+      --line:#263429; --line-strong:#33463A;
+      --accent:#52BD8A; --accent-ink:#7FD4AA; --bloom:#E37AAB;
+      --neutral:#8C9A90; --neutral-wash:#1E2822;
+      --ok:#52BD8A; --warn:#D6A250; --crit:#E06A5C;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0E1512; --surface:#15201A; --surface-2:#1B2820;
+    --ink:#E8EFE9; --ink-soft:#A2B2A8; --ink-faint:#7B8C82;
+    --line:#263429; --line-strong:#33463A;
+    --accent:#52BD8A; --accent-ink:#7FD4AA; --bloom:#E37AAB;
+    --neutral:#8C9A90; --neutral-wash:#1E2822;
+    --ok:#52BD8A; --warn:#D6A250; --crit:#E06A5C;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.32);
+  }
+  :root[data-theme="light"]{ color-scheme:light; }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5}
+  .wrap{max-width:1040px;margin:0 auto;padding:clamp(16px,4vw,30px)}
+  a{color:inherit}
+  h1{font-size:clamp(1.5rem,3vw,1.95rem);font-weight:720;letter-spacing:-.02em;margin:0;text-wrap:balance}
+  .eyebrow{font:600 .72rem/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .mini-h{font:700 .6rem/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint)}
+  .sub{color:var(--ink-soft);font-size:.9rem;max-width:64ch;margin:.5rem 0 0}
+
+  /* header */
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .modechip{display:inline-flex;align-items:center;gap:7px;font:700 .64rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);padding:6px 11px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent)}
+  .livedot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  @media (prefers-reduced-motion:reduce){.livedot{animation:none}}
+
+  /* summary chips */
+  .summary{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 4px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:96px;box-shadow:var(--shadow)}
+  .stat .n{font:700 1.15rem/1 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .stat .l{font:700 .56rem/1.2 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-top:5px}
+  .stat.crit .n{color:var(--crit)} .stat.warn .n{color:var(--warn)} .stat.accent .n{color:var(--accent)}
+
+  /* filter chips */
+  .filters{display:flex;gap:7px;flex-wrap:wrap;margin:20px 0 14px}
+  .chip{font:600 .78rem/1 var(--sans);padding:7px 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);cursor:pointer;display:inline-flex;gap:7px;align-items:center;transition:border-color .12s,color .12s}
+  .chip:hover{border-color:var(--accent)}
+  .chip .c{font:700 .62rem/1 var(--mono);color:var(--ink-faint)}
+  .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip[aria-pressed="true"] .c{color:rgba(255,255,255,.82)}
+  .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* section headers */
+  .sec{margin:26px 0 12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .sec h2{font-size:1.02rem;font-weight:700;margin:0;letter-spacing:-.01em}
+  .sec .note{color:var(--ink-faint);font-size:.8rem}
+  .count-pill{font:700 .6rem/1 var(--mono);color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:3px 8px;border-radius:999px}
+
+  /* proposed lane cards */
+  .lane{display:grid;gap:10px}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .pcard .head{display:flex;gap:12px;align-items:flex-start;padding:14px 16px}
+  .pcard .body-txt{flex:1;min-width:0}
+  .pcard .oname{font:700 .82rem/1 var(--mono);color:var(--accent-ink)}
+  :root[data-theme="dark"] .pcard .oname,@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pcard .oname{color:var(--accent)}}
+  .pcard .what{font-weight:640;margin-top:6px;letter-spacing:-.01em}
+  .pcard .meta{color:var(--ink-soft);font-size:.82rem;margin-top:3px}
+  .actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .agree{font:600 .68rem/1.3 var(--mono);color:var(--ink-faint);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .agree b{color:var(--ink-soft)}
+  .agree.ready{color:var(--accent)} .agree.ready b{color:var(--accent)}
+  .agree.edit{color:var(--warn)} .agree.edit b{color:var(--warn)}
+  .agree .bar{width:44px;height:5px;border-radius:3px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+  .agree .bar i{display:block;height:100%;background:currentColor;border-radius:3px}
+
+  /* buttons (ported from .ds .btn family) */
+  .btn{font:600 .8rem/1 var(--sans);padding:8px 13px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .btn:hover{border-color:var(--accent);filter:brightness(1.02)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn-solid{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn-ghost{border-color:var(--line-strong);color:var(--ink-soft);background:transparent}
+  .btn-warn{border-color:color-mix(in srgb,var(--crit) 45%,var(--line));color:var(--crit);background:color-mix(in srgb,var(--crit) 7%,transparent)}
+  .btn-sm{padding:6px 10px;font-size:.74rem}
+
+  /* drawer (inline email edit) */
+  .drawer{border-top:1px dashed var(--line-strong);background:var(--surface-2);padding:0 16px;max-height:0;overflow:hidden;transition:max-height .25s ease,padding .25s ease}
+  .drawer.open{max-height:560px;padding:15px 16px}
+  @media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+  .drawer .field{margin-bottom:10px}
+  .drawer label{display:block;font:700 .56rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px}
+  .drawer input,.drawer textarea{width:100%;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:.86rem}
+  .drawer textarea{min-height:104px;resize:vertical;line-height:1.55}
+  .drawer input:focus-visible,.drawer textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .drawer .to{font:600 .8rem/1.4 var(--mono);color:var(--ink-soft)}
+  .drawer .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .drawer .foot .hint{font-size:.74rem;color:var(--ink-faint)}
+
+  /* badges */
+  .badge{font:700 .58rem/1 var(--mono);text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;vertical-align:middle}
+  .b-place{color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,transparent)}
+  .b-money{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+  .b-msg{color:var(--bloom);background:color-mix(in srgb,var(--bloom) 12%,transparent)}
+  .b-deliver{color:#3B7BB0;background:color-mix(in srgb,#3B7BB0 15%,transparent)}
+  .b-kind{color:var(--neutral);background:var(--neutral-wash)}
+
+  /* exception table */
+  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  thead th{font:700 .56rem/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr{cursor:pointer;transition:background .1s}
+  tbody tr:hover{background:var(--surface-2)}
+  .oid{font:700 .82rem/1 var(--mono);color:var(--ink)}
+  .reason{display:flex;align-items:center;gap:9px}
+  .reason .txt{font-weight:560}
+  .unread{width:7px;height:7px;border-radius:50%;background:var(--bloom);flex:none}
+  td.strip{position:relative}
+  tr.crit td.strip::before,tr.warn td.strip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+  tr.crit td.strip::before{background:var(--crit)}
+  tr.warn td.strip::before{background:var(--warn)}
+  .sla{font:700 .68rem/1 var(--mono);font-variant-numeric:tabular-nums}
+  .sla.crit{color:var(--crit)} .sla.warn{color:var(--warn)} .sla.ok{color:var(--ink-soft)}
+  .deliver{font-size:.82rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .amt{font:700 .82rem/1 var(--mono);font-variant-numeric:tabular-nums}
+  td.act{text-align:right;white-space:nowrap}
+  .hidden{display:none!important}
+
+  /* footer / prop banner */
+  .prop{margin-top:26px;border:1px dashed var(--line-strong);border-radius:10px;padding:12px 15px;background:var(--surface);color:var(--ink-soft);font-size:.8rem;display:flex;gap:10px;align-items:flex-start}
+  .prop b{color:var(--ink)}
+  .themebtn{position:fixed;top:12px;right:12px;z-index:5;font:600 .72rem/1 var(--sans);padding:7px 11px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);cursor:pointer;box-shadow:var(--shadow)}
+  .empty{padding:22px;color:var(--ink-faint);text-align:center;font-size:.86rem}
+  @media (max-width:620px){
+    .deliver,.hide-sm{display:none}
+    .pcard .head{flex-wrap:wrap}
+  }
+</style>
+
+<button class="themebtn" id="themebtn" type="button" aria-label="Toggle theme">◐ Theme</button>
+
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="eyebrow">CX Desk</div>
+      <h1>Needs a human</h1>
+      <p class="sub">One surface to see what needs you — and act on it without leaving. While you're in <b>semi</b> mode, the loop's proposed steps sit up top; each kind graduates to fully automatic once its agree-rate earns your trust, and this lane quietly empties.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <span class="modechip"><span class="livedot"></span>Semi · live</span>
+      <span class="mini-h">Refreshed 12s ago</span>
+    </div>
+  </header>
+
+  <div class="summary">
+    <div class="stat accent"><div class="n">4</div><div class="l">Proposed</div></div>
+    <div class="stat"><div class="n">6</div><div class="l">Exceptions</div></div>
+    <div class="stat crit"><div class="n">2</div><div class="l">SLA / failed</div></div>
+    <div class="stat warn"><div class="n">€248</div><div class="l">Money held</div></div>
+    <div class="stat"><div class="n">1</div><div class="l">Unread</div></div>
+  </div>
+
+  <div class="filters" role="group" aria-label="Filter by type">
+    <button class="chip" data-filter="all" aria-pressed="true">All <span class="c">10</span></button>
+    <button class="chip" data-filter="proposed" aria-pressed="false">Proposed <span class="c">4</span></button>
+    <button class="chip" data-filter="place" aria-pressed="false">Place <span class="c">2</span></button>
+    <button class="chip" data-filter="message" aria-pressed="false">Message <span class="c">1</span></button>
+    <button class="chip" data-filter="deliver" aria-pressed="false">Delivery <span class="c">1</span></button>
+    <button class="chip" data-filter="money" aria-pressed="false">Money <span class="c">2</span></button>
+  </div>
+
+  <!-- ZONE 1 : proposed by the system (semi-mode approvals) -->
+  <section id="zone-proposed" data-zone="proposed">
+    <div class="sec">
+      <h2>Proposed by the system</h2>
+      <span class="count-pill">4 waiting</span>
+      <span class="note">Approve to let the loop continue. The agree-rate shows which kinds are ready to run themselves.</span>
+    </div>
+
+    <div class="lane">
+
+      <!-- offer (email) — expandable drawer -->
+      <article class="pcard" data-cat="proposed">
+        <div class="head">
+          <div class="body-txt">
+            <span class="oname">#2000012</span> <span class="badge b-kind">Offer</span>
+            <div class="what">Send the offer to <b>Fleurs de Girona</b> — rank 1, 1.2 km, 4.8★</div>
+            <div class="meta">Deliver today 16:00 · Bouquet “Rosa” · €54 · SLA to accept 30 min</div>
+          </div>
+        </div>
+        <div class="head" style="padding-top:0;justify-content:space-between;align-items:center">
+          <span class="agree"><span class="bar"><i style="width:96%"></i></span>Approved <b>46/48</b> unchanged</span>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" data-drawer="d1" aria-expanded="false">Edit ▾</button>
+            <button class="btn btn-ghost btn-sm">Skip to next</button>
+            <button class="btn btn-solid btn-sm">Approve &amp; send</button>
+          </div>
+        </div>
+        <div class="drawer" id="d1">
+          <div class="field"><label>To</label><div class="to">girona@fleurs-demo-girona.es</div></div>
+          <div class="field"><label>Subject</label><input type="text" value="New Facundo order for today — can you take it?"></div>
+          <div class="field"><label>Message</label><textarea>Hi Fleurs de Girona,
+
+A Facundo order is ready for you: bouquet “Rosa”, delivery today by 16:00 in Girona centre. Payout €37.80 (70%) on acceptance, €16.20 on the delivered photo.
+
+Tap to accept within 30 minutes — otherwise it moves to the next florist.</textarea></div>
+          <div class="foot">
+            <span class="hint">Edits here are logged — editing counts against this kind's agree-rate.</span>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" data-drawer="d1">Cancel</button>
+              <button class="btn btn-solid btn-sm">Approve &amp; send</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- match — ready to automate teaser -->
+      <article class="pcard" data-cat="proposed">
+        <div class="head" style="justify-content:space-between;align-items:center">
+          <div class="body-txt">
+            <span class="oname">#2000011</span> <span class="badge b-kind">Match</span>
+            <div class="what">Make <b>3 candidates</b> live for reach-out</div>
+            <div class="meta">Roses &amp; Co · Petals Girona · La Bloom — scored & ranked</div>
+          </div>
+          <div class="actions" style="flex-direction:column;align-items:flex-end;gap:8px">
+            <span class="agree ready"><span class="bar"><i style="width:100%"></i></span><b>50/50</b> · ready for auto?</span>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">Reject</button>
+              <button class="btn btn-solid btn-sm">Approve</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- client delivered email — lower agree, needs review -->
+      <article class="pcard" data-cat="proposed" style="border-left-color:var(--warn)">
+        <div class="head">
+          <div class="body-txt">
+            <span class="oname">#2000009</span> <span class="badge b-kind">Customer email</span>
+            <div class="what">Tell the customer their flowers <b>arrived</b> — with the delivery photo</div>
+            <div class="meta">To buyer · triggered by florist's delivered photo</div>
+          </div>
+        </div>
+        <div class="head" style="padding-top:0;justify-content:space-between;align-items:center">
+          <span class="agree edit"><span class="bar"><i style="width:70%"></i></span>Edited <b>6 of 20</b> — review before auto</span>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" data-drawer="d3" aria-expanded="false">Edit ▾</button>
+            <button class="btn btn-ghost btn-sm">Hold</button>
+            <button class="btn btn-solid btn-sm">Approve &amp; send</button>
+          </div>
+        </div>
+        <div class="drawer" id="d3">
+          <div class="field"><label>To</label><div class="to">buyer@example.com</div></div>
+          <div class="field"><label>Subject</label><input type="text" value="Your Facundo flowers have been delivered 🌸"></div>
+          <div class="field"><label>Message</label><textarea>Good news — your order was delivered in Girona this afternoon. The photo from the florist is attached. Thank you for ordering with Facundo!</textarea></div>
+          <div class="foot">
+            <span class="hint">This kind still gets edited ~30% of the time — not a safe auto candidate yet.</span>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" data-drawer="d3">Cancel</button>
+              <button class="btn btn-solid btn-sm">Approve &amp; send</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- escalate -->
+      <article class="pcard" data-cat="proposed" style="border-left-color:var(--crit)">
+        <div class="head" style="justify-content:space-between;align-items:center">
+          <div class="body-txt">
+            <span class="oname">#2000010</span> <span class="badge b-kind">Escalate</span>
+            <div class="what">Escalate to CX — <b>no florist within 15 km</b> accepted</div>
+            <div class="meta">3 offers declined/expired · deliver tomorrow 10:00</div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm">Reject</button>
+            <button class="btn btn-solid btn-sm">Approve</button>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ZONE 2 : needs a human (permanent exception queue) -->
+  <section id="zone-exceptions">
+    <div class="sec">
+      <h2>Needs a human</h2>
+      <span class="count-pill">6 open</span>
+      <span class="note">Exceptions the loop can't resolve on its own. This queue stays even after you go fully auto.</span>
+    </div>
+
+    <div class="tablecard">
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th><th>Reason</th><th class="hide-sm">Deliver</th><th>SLA</th><th style="text-align:right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="crit" data-cat="place">
+            <td class="strip"><span class="oid">#2000002</span></td>
+            <td><div class="reason"><span class="badge b-place">Place</span><span class="txt">Offer stalling — SLA breached</span></div></td>
+            <td class="hide-sm deliver">Today 14:00</td>
+            <td><span class="sla crit">−18m</span></td>
+            <td class="act"><button class="btn btn-solid btn-sm">Advance ▸</button></td>
+          </tr>
+          <tr class="crit" data-cat="money">
+            <td class="strip"><span class="oid">#2000006</span></td>
+            <td><div class="reason"><span class="badge b-money">Money</span><span class="txt">Payout failed — retries exhausted</span></div></td>
+            <td class="hide-sm deliver">—</td>
+            <td><span class="sla ok">—</span></td>
+            <td class="act"><button class="btn btn-warn btn-sm">Settle ▸</button></td>
+          </tr>
+          <tr class="warn" data-cat="deliver">
+            <td class="strip"><span class="oid">#2000005</span></td>
+            <td><div class="reason"><span class="badge b-deliver">Delivery</span><span class="txt">Late — past the delivery window</span></div></td>
+            <td class="hide-sm deliver">Today 11:00</td>
+            <td><span class="sla warn">+41m</span></td>
+            <td class="act"><button class="btn btn-sm">Mark delivered</button></td>
+          </tr>
+          <tr data-cat="place">
+            <td class="strip"><span class="oid">#2000007</span></td>
+            <td><div class="reason"><span class="badge b-place">Place</span><span class="txt">Needs next florist — no live offer</span></div></td>
+            <td class="hide-sm deliver">Tomorrow 10:00</td>
+            <td><span class="sla ok">—</span></td>
+            <td class="act"><button class="btn btn-sm">Advance ▸</button></td>
+          </tr>
+          <tr data-cat="money">
+            <td class="strip"><span class="oid">#2000003</span></td>
+            <td><div class="reason"><span class="badge b-money">Money</span><span class="txt">30% held — approve release</span></div></td>
+            <td class="hide-sm deliver">—</td>
+            <td><span class="amt">€124</span></td>
+            <td class="act"><button class="btn btn-solid btn-sm">Release ▸</button></td>
+          </tr>
+          <tr data-cat="message">
+            <td class="strip"><span class="oid">#2000004</span></td>
+            <td><div class="reason"><span class="unread" title="Unread"></span><span class="badge b-msg">Message</span><span class="txt">Florist issue: wrong address</span></div></td>
+            <td class="hide-sm deliver">Tomorrow 16:00</td>
+            <td><span class="sla ok">—</span></td>
+            <td class="act"><button class="btn btn-sm">Open ▸</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="empty hidden" id="empty">Nothing of this type — the queue is clear.</div>
+    </div>
+
+  </section>
+
+  <div class="prop">
+    <span aria-hidden="true">✎</span>
+    <div><b>Layout mockup — fake data, for discussion.</b> This sketches the <i>unified desk</i>: proposed steps (semi-mode approvals) up top with an inline edit drawer + agree-rate, over the permanent exception queue below. Not wired to anything. The per-kind “ready for auto?” signal is only teased here — it's its own conversation.</div>
+  </div>
+
+</div>
+
+<script>
+  // theme toggle (mockup convenience; viewer's own toggle also works via data-theme)
+  document.getElementById('themebtn').addEventListener('click', function(){
+    var r=document.documentElement;
+    var cur=r.getAttribute('data-theme');
+    if(!cur){ cur = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light'; }
+    r.setAttribute('data-theme', cur==='dark'?'light':'dark');
+  });
+
+  // inline drawers
+  document.querySelectorAll('[data-drawer]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var d=document.getElementById(btn.getAttribute('data-drawer'));
+      if(!d) return;
+      var open=d.classList.toggle('open');
+      document.querySelectorAll('[data-drawer="'+btn.getAttribute('data-drawer')+'"][aria-expanded]').forEach(function(b){b.setAttribute('aria-expanded',open)});
+    });
+  });
+
+  // category filters
+  var chips=document.querySelectorAll('.chip');
+  var propZone=document.getElementById('zone-proposed');
+  var rows=document.querySelectorAll('#zone-exceptions tbody tr');
+  var pcards=document.querySelectorAll('.pcard');
+  var empty=document.getElementById('empty');
+  chips.forEach(function(chip){
+    chip.addEventListener('click', function(){
+      chips.forEach(function(c){c.setAttribute('aria-pressed','false')});
+      chip.setAttribute('aria-pressed','true');
+      var f=chip.getAttribute('data-filter');
+      // proposed zone visible for all / proposed
+      propZone.classList.toggle('hidden', !(f==='all'||f==='proposed'));
+      // exception rows
+      var shown=0;
+      rows.forEach(function(tr){
+        var show = (f==='all') || (f!=='proposed' && tr.getAttribute('data-cat')===f);
+        tr.classList.toggle('hidden', !show);
+        if(show) shown++;
+      });
+      // if filtering to 'proposed', hide the whole exception section body; else show
+      document.getElementById('zone-exceptions').classList.toggle('hidden', f==='proposed');
+      empty.classList.toggle('hidden', !(shown===0 && f!=='proposed' && f!=='all'));
+    });
+  });
+</script>

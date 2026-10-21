@@ -1,0 +1,68 @@
+name: Garden weather
+
+# Plants the garden's ~20 invented orders for the day (agents/garden/weather.mjs)
+# through the garden worker's real Shopify webhook, then runs the placeholder
+# florist puppet (agents/garden/weather-puppet.mjs) for the clicks the
+# scenarios need. The garden's own every-minute cron does everything else.
+#
+# 04:00 UTC is 06:00 in Madrid in summer and 05:00 in winter. The two later
+# runs only catch the late accepts, which wait for an offer window to lapse
+# (90 to 180 minutes with today's garden settings).
+#
+# Garden only: the guard job refuses any database but the side project, and
+# weather-lib.mjs refuses again, then checks test_mode, test_email,
+# payments_live, shopify_writeback_enabled and test_shop_matching before it
+# plants anything.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plant = plant the day, then the puppet loop; puppet = one puppet pass"
+        type: choice
+        options: [plant, puppet]
+        default: plant
+      day:
+        description: "Madrid date to plant (YYYY-MM-DD); empty = today"
+        required: false
+
+concurrency:
+  group: garden-weather
+  cancel-in-progress: false
+
+env:
+  GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+  GARDEN_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+  GARDEN_SHOPIFY_WEBHOOK_SECRET: ${{ secrets.GARDEN_SHOPIFY_WEBHOOK_SECRET }}
+
+jobs:
+  weather:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Refuse anything but the side-project database
+        run: |
+          case "$GARDEN_SUPABASE_URL" in
+            https://your-project-ref.supabase.co) echo "side-project database" ;;
+            *) echo "::error::GARDEN_SUPABASE_URL is not the side-project Supabase"; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          # Dispatches read this file from main, which does not carry the garden scripts.
+          ref: garden
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Plant the day
+        if: inputs.mode != 'puppet'
+        run: node agents/garden/weather.mjs plant ${{ inputs.day && format('--day {0}', inputs.day) || '' }}
+      - name: Florist puppet (placeholder for tester.army and the reply actors)
+        run: |
+          if [ "${{ inputs.mode }}" != "puppet" ]; then
+            node agents/garden/weather-puppet.mjs ${{ inputs.day && format('--day {0}', inputs.day) || '' }} --loop 25
+          else
+            node agents/garden/weather-puppet.mjs
+          fi
+      - name: Where the day's orders are
+        if: always()
+        run: node agents/garden/weather.mjs status ${{ inputs.day && format('--day {0}', inputs.day) || '' }}

@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#__next {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900;
+}
+
+/* Leaflet needs an explicit height on its container; Tailwind utility classes
+   handle that per-usage, this just keeps the default popup styling readable. */
+.leaflet-popup-content {
+  margin: 0.75rem 1rem;
+  min-width: 200px;
+}
+
+/* Overview page micro-interactions (AddCityDialog open, RerunToast
+   slide-in). Kept to opacity/transform only and guarded by
+   prefers-reduced-motion so motion-sensitive users get an instant show
+   instead — see docs/superpowers/specs/2026-07-02-overview-redesign-brief.md
+   "Micro-interactions". */
+@keyframes overview-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overview-dialog-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes overview-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Jobs panel slide-over (see components/JobsPanel.tsx). */
+@keyframes overview-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* City page (`/city/[id]`) FloristDetailPanel (components/ScoreBreakdown.tsx)
+   open animation — named page-agnostically (not `overview-*`) per
+   docs/superpowers/specs/2026-07-02-city-page-redesign-brief.md "A11y /
+   type / motion", since it's shared by the non-modal desktop panel and the
+   mobile modal fallback. Same slide-from-the-right motion as the jobs panel
+   drawer, kept as its own named keyframe rather than reusing
+   `overview-drawer-in` so the two pages' animations can diverge later
+   without cross-coupling. */
+@keyframes city-panel-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Staff shell (components/shell/StaffShell.tsx) mobile sidebar drawer —
+   same slide-in mechanic as overview-drawer-in/city-panel-slide-in, mirrored
+   to slide in from the LEFT (translateX(-100%) -> 0) since the sidebar is
+   left-anchored, unlike the right-anchored jobs/city panels. */
+@keyframes staff-sidebar-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-overview-backdrop-fade {
+    animation: overview-backdrop-fade 150ms ease-out;
+  }
+  .animate-overview-dialog-pop {
+    animation: overview-dialog-pop 150ms ease-out;
+  }
+  .animate-overview-toast-in {
+    animation: overview-toast-in 200ms ease-out;
+  }
+  .animate-overview-drawer-in {
+    animation: overview-drawer-in 200ms ease-out;
+  }
+  .animate-city-panel-slide-in {
+    animation: city-panel-slide-in 200ms ease-out;
+  }
+  .animate-staff-sidebar-drawer-in {
+    animation: staff-sidebar-drawer-in 200ms ease-out;
+  }
+}

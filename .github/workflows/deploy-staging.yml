@@ -1,0 +1,147 @@
+name: Deploy staging (Cloudflare)
+
+# Auto-deploys the dashboard to Cloudflare Workers on every push to `staging`.
+# Also runnable manually from the Actions tab (workflow_dispatch).
+#
+# One-time setup (repo Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN         — a token with "Edit Cloudflare Workers" permission
+#   CLOUDFLARE_ACCOUNT_ID        — your Cloudflare account id
+#   STAGING_NEXT_PUBLIC_SUPABASE_URL      — staging DB URL, build-time/client-public
+#   STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY — staging DB anon key, build-time/client-public
+#   STAGING_SUPABASE_SERVICE_ROLE_KEY     — staging DB service role, runtime/server-only
+#
+# The RUNTIME secrets (SUPABASE_SERVICE_ROLE_KEY, ONGAGE_*,
+# ALLOWED_EMAILS) are NOT set here — set them once on the Worker via
+# `wrangler secret put …` (see dashboard/DEPLOY.md). They persist across deploys.
+# INGEST_MODE=queue is a plain var already baked into wrangler.jsonc.
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Guard staging database isolation
+        env:
+          STAGING_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_URL }}
+          STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          PROD_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          if [ -z "$STAGING_NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || [ -z "$STAGING_SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Staging Supabase secrets are not configured. Set STAGING_NEXT_PUBLIC_SUPABASE_URL, STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY, and STAGING_SUPABASE_SERVICE_ROLE_KEY before deploying staging."
+            exit 1
+          fi
+          if [ "$STAGING_NEXT_PUBLIC_SUPABASE_URL" = "$PROD_NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::error::Refusing to deploy staging against the production/v0.2 Supabase project."
+            exit 1
+          fi
+
+      - name: Build (OpenNext for Cloudflare)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Web-push public key (safe to expose — it is shipped to the browser).
+          # Keep staging's client bundle in parity with v0.2; runtime private VAPID
+          # remains a Worker secret.
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          # PostHog session replay + analytics. Inlined at build — CI has no
+          # .env.local, so without these the deployed bundle silently has no
+          # analytics until it's rebuilt (no runtime enable via wrangler secret).
+          # Set the matching secret: gh secret set NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+          NEXT_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+          # Internal emails opted out of PostHog entirely (no replay, no events),
+          # so the team's own traffic doesn't skew funnels or fill the replay list.
+          # Not a secret (private repo, and it ships to the browser anyway).
+          # Replay is separately off on localhost/staging by hostname (lib/analytics.ts).
+          NEXT_PUBLIC_POSTHOG_EXCLUDED_EMAILS: user@example.com
+          # Non-secret build-time client flag: makes RerunCityButton / AddCityForm
+          # enqueue ingest jobs (skip the keyword prefetch) for the Mac-mini poller,
+          # matching INGEST_MODE=queue on the Worker. CI has no .env.local, so it must
+          # be set here or the client never enters queue mode.
+          NEXT_PUBLIC_INGEST_MODE: queue
+        # Runs on Linux CI (no iCloud) — build straight into .open-next, no .nosync dance.
+        run: npx opennextjs-cloudflare build
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Set staging runtime Supabase secret
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+        run: printf '%s' "$STAGING_SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name facundo-dashboard-staging
+
+      # Staging moved from Ongage to Resend on 2026-09-09. Ongage returns no
+      # per-message id, so `email_events` could never attach an open or a click
+      # and the recruiting funnel's open gates had nothing to branch on — every
+      # shop resolved to `unknown` and received every touch. Resend reports
+      # delivered/opened/clicked/bounced through the webhook below.
+      #
+      # Set here rather than by hand because these are the credentials a
+      # redeploy must not lose, and because the token that runs CI is the one
+      # with permission to write Worker secrets.
+      - name: Set staging email transport (Resend) + webhook secret
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_RESEND_WEBHOOK_SECRET: ${{ secrets.STAGING_RESEND_WEBHOOK_SECRET }}
+        run: |
+          printf 'resend' | npx wrangler secret put EMAIL_TRANSPORT --name facundo-dashboard-staging
+          # Without this the webhook route returns 500 before verifying anything,
+          # so Resend would retry every event forever and nothing would record.
+          printf '%s' "$STAGING_RESEND_WEBHOOK_SECRET" | npx wrangler secret put RESEND_WEBHOOK_SECRET --name facundo-dashboard-staging
+
+      # Inbound email: florist replies land in /conversations and /communications
+      # (added 2026-09-16, docs/superpowers/specs/2026-09-16-florist-locale-and-
+      # reply-failures-design.md). Resend delivers mail for the account's managed
+      # <id>.resend.app domain to /api/webhooks/resend-inbound.
+      #
+      #   STAGING_RESEND_INBOUND_WEBHOOK_SECRET  signing secret of that webhook
+      #   STAGING_REPLY_TOKEN_SECRET             signs r+<token>@ reply addresses
+      #   STAGING_INBOUND_EMAIL_DOMAIN           the <id>.resend.app domain
+      #
+      # INBOUND_EMAIL_DOMAIN is the switch: while it is unset, outbound mail
+      # carries no app reply address and nothing changes. So it is only pushed
+      # when the secret exists, and the other two are pushed first.
+      - name: Set staging inbound email secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_RESEND_INBOUND_WEBHOOK_SECRET: ${{ secrets.STAGING_RESEND_INBOUND_WEBHOOK_SECRET }}
+          STAGING_REPLY_TOKEN_SECRET: ${{ secrets.STAGING_REPLY_TOKEN_SECRET }}
+          STAGING_INBOUND_EMAIL_DOMAIN: ${{ secrets.STAGING_INBOUND_EMAIL_DOMAIN }}
+        run: |
+          if [ -n "$STAGING_RESEND_INBOUND_WEBHOOK_SECRET" ]; then
+            printf '%s' "$STAGING_RESEND_INBOUND_WEBHOOK_SECRET" | npx wrangler secret put RESEND_INBOUND_WEBHOOK_SECRET --name facundo-dashboard-staging
+          fi
+          if [ -n "$STAGING_REPLY_TOKEN_SECRET" ]; then
+            printf '%s' "$STAGING_REPLY_TOKEN_SECRET" | npx wrangler secret put REPLY_TOKEN_SECRET --name facundo-dashboard-staging
+          fi
+          if [ -n "$STAGING_INBOUND_EMAIL_DOMAIN" ]; then
+            printf '%s' "$STAGING_INBOUND_EMAIL_DOMAIN" | npx wrangler secret put INBOUND_EMAIL_DOMAIN --name facundo-dashboard-staging
+          else
+            echo "STAGING_INBOUND_EMAIL_DOMAIN not set: inbound email stays off on staging."
+          fi
