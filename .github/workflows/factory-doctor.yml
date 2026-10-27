@@ -1,0 +1,164 @@
+name: Factory doctor (the factory fixes itself)
+
+# Works ONE open source='factory' card: the sweep makes one when two executor
+# runs fail the same way in 24 hours (agents/factory/cards.mjs factoryCards).
+# Same three jobs as factory-execute.yml, but the executor code comes from the
+# git tag factory-good (the last executor that ran clean; garden if the tag is
+# missing), so a broken executor on garden cannot stop its own doctor.
+# Doctor PRs are always needs-human; a card is parked after 2 tries.
+
+on:
+  workflow_dispatch:
+    inputs:
+      card:
+        description: Factory card id (empty = the oldest eligible factory card)
+        required: false
+        default: ""
+      executor_ref:
+        description: Executor code ref (empty = the factory-good tag, else garden; set only for test runs)
+        required: false
+        default: ""
+      base:
+        description: Branch the agent works on and the draft PR targets (test runs only; normally garden)
+        required: false
+        default: garden
+
+concurrency:
+  group: factory-doctor
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  FACTORY_BASE: ${{ inputs.base || 'garden' }}
+  RUN_DIR: /tmp/factory-run
+  NODE_OPTIONS: --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+
+jobs:
+  claim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      run_id: ${{ steps.claim.outputs.run_id }}
+      executor_ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - name: Pick the executor (factory-good, else garden)
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OVERRIDE: ${{ inputs.executor_ref }}
+        run: |
+          if [ -n "$OVERRIDE" ]; then ref="$OVERRIDE"
+          elif gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/factory-good" >/dev/null 2>&1; then ref=factory-good
+          else ref=garden; echo "::warning::no factory-good tag; the doctor runs the executor from garden"; fi
+          echo "executor: $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0
+      - name: The executor there knows the doctor lane
+        run: |
+          grep -q -- '--lane' agents/factory/execute-card.mjs || { echo "::error::the executor at ${{ steps.ref.outputs.ref }} has no doctor lane yet"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test the executor rules
+        run: node --test agents/factory/*.test.mjs
+      - name: Claim a factory card
+        id: claim
+        env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          CARD: ${{ inputs.card }}
+        run: node agents/factory/execute-card.mjs --phase claim --lane doctor --runner local --dir "$RUN_DIR" ${CARD:+--card "$CARD"}
+      - if: steps.claim.outputs.run_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-in
+          path: ${{ env.RUN_DIR }}
+          retention-days: 7
+
+  agent:
+    needs: claim
+    if: needs.claim.outputs.run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.claim.outputs.executor_ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: factory-in
+          path: ${{ env.RUN_DIR }}
+      - name: Install Claude Code (the box's version) and pstack
+        run: |
+          version=$(sed -n 's/^ARG CLAUDE_CODE_VERSION=//p' agents/factory/box/Dockerfile)
+          npm install -g "@anthropic-ai/claude-code@${version:?}"
+          git clone -q --depth 1 --branch v0.9.57 https://github.com/michael-denyer/pstack-claude "$RUNNER_TEMP/pstack-claude"
+          test -f "$RUNNER_TEMP/pstack-claude/plugins/pstack/skills/poteto-mode/SKILL.md"
+          echo "FACTORY_PSTACK=$RUNNER_TEMP/pstack-claude/plugins/pstack" >> "$GITHUB_ENV"
+      # The doctor works on executor code, not the dashboard: no local garden.
+      - name: Take sudo and Docker away from the agent
+        run: |
+          sudo chgrp root /var/run/docker.sock
+          if docker ps >/dev/null 2>&1; then echo "docker still works" >&2; exit 1; fi
+          sudo rm -f /etc/sudoers.d/runner
+          if sudo -n true 2>/dev/null; then echo "sudo still works" >&2; exit 1; fi
+      - name: Work the card
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          FACTORY_MINUTES: "55"
+          FACTORY_BUDGET_USD: "5"
+          FACTORY_MAX_TURNS: "200"
+        run: node agents/factory/execute-card.mjs --phase agent --runner local --dir "$RUN_DIR"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-out
+          path: ${{ env.RUN_DIR }}/out
+          retention-days: 14
+
+  publish:
+    needs: [claim, agent]
+    if: always() && needs.claim.outputs.run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      # A run that asks the owner a question before writing code opens an issue for it.
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.claim.outputs.executor_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: factory-in
+          path: ${{ env.RUN_DIR }}
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: factory-out
+          path: ${{ env.RUN_DIR }}/out
+      # A doctor run never moves factory-good (execute-card.mjs skips it for factory cards).
+      - name: Push, open the draft PR, record the run
+        env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: node agents/factory/execute-card.mjs --phase publish --runner local --dir "$RUN_DIR"

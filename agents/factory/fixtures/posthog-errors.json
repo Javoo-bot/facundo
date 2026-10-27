@@ -1,0 +1,14 @@
+[
+  { "event": "order_automation_failed", "timestamp": "2026-10-22T11:00:00Z", "properties": { "context": "webhook.orders_create", "message": "insert orders failed: duplicate key 4411\n  at upsertOrder" } },
+  { "event": "order_automation_failed", "timestamp": "2026-10-22T10:00:00Z", "properties": { "context": "webhook.orders_create", "message": "insert orders failed: duplicate key 4412" } },
+  { "event": "order_automation_failed", "timestamp": "2026-10-22T09:00:00Z", "properties": { "context": "webhook.orders_create", "message": "insert orders failed: duplicate key 4413" } },
+  { "event": "order_automation_failed", "timestamp": "2026-10-22T09:30:00Z", "properties": { "context": "webhook.orders_create", "message": "shopify signature mismatch" } },
+  { "event": "order_workflow_step_failed", "timestamp": "2026-10-22T08:00:00Z", "properties": { "step": "match-and-write", "message": "timeout after 30000ms for order 6f1c2a10-1111-4222-8333-944455556666" } },
+  { "event": "order_workflow_step_failed", "timestamp": "2026-10-22T07:00:00Z", "properties": { "step": "match-and-write", "message": "timeout after 30000ms for order 0a0b0c0d-1111-4222-8333-944455556666" } },
+  { "event": "order_match_failed", "timestamp": "2026-10-22T06:00:00Z", "properties": { "order_id": "o1", "city_id": "c1", "mode": "auto", "ingest_outcome": "found-nothing" } },
+  { "event": "order_match_failed", "timestamp": "2026-10-22T05:00:00Z", "properties": { "order_id": "o2", "city_id": "c1", "mode": "auto", "ingest_outcome": "found-nothing" } },
+  { "event": "order_automation_failed", "timestamp": "2026-10-22T04:00:00Z", "properties": { "context": "cron.waves_tick", "message": "rpc next_wave failed" } },
+  { "event": "order_automation_failed", "timestamp": "2026-10-22T03:00:00Z", "properties": { "context": "cron.waves_tick", "message": "rpc next_wave failed" } },
+  { "event": "order_automation_failed", "timestamp": "2026-10-20T09:00:00Z", "properties": { "context": "cron.waves_tick", "message": "rpc next_wave failed" } },
+  { "event": "pageview", "timestamp": "2026-10-22T11:30:00Z", "properties": { "context": "webhook.orders_create", "message": "insert orders failed: duplicate key 1" } }
+]

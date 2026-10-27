@@ -1,0 +1,97 @@
+name: Factory after merge (grow the verify map)
+
+# When a factory/card-* PR merges into garden, a cheap agent (Haiku 5.5, $2 cap)
+# runs pstack:maintain-verification-skill on the files it changed and opens a
+# draft PR labelled verify-map with any update under .claude/skills/verify/.
+# The same PR adds one dated fact (the PR title) under "## Learned" in the card
+# agent's agents/thinking/<agent>.md (owner memory, newest 20 kept, facts only).
+# .claude/ is protected, so these PRs always wait for the owner.
+# See agents/factory/README.md and agents/factory/after-merge.mjs.
+#
+# A merge made with the workflow token starts no push workflow, so the free
+# lane's publish job dispatches this with the merge sha instead.
+
+on:
+  push:
+    branches: [garden]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Garden commit that merged a factory/card-* PR
+        required: true
+      base:
+        description: Branch the verify-map PR targets
+        required: false
+        default: garden
+
+concurrency:
+  group: factory-after-merge
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  SHA: ${{ inputs.sha || github.sha }}
+  BASE: ${{ inputs.base || 'garden' }}
+  WORK: ${{ github.workspace }}/work
+  BRIEF: ${{ github.workspace }}/../verify-map-brief.md
+  RESULT: ${{ github.workspace }}/../verify-map-result.json
+  LEARNED: ${{ github.workspace }}/../verify-map-learned.json
+  NODE_OPTIONS: --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+
+jobs:
+  verify-map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Find the card PR this commit merged
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+        run: node agents/factory/after-merge.mjs find
+      - if: steps.find.outputs.pr != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          path: work
+          persist-credentials: false
+      - name: Install Claude Code (the box's version) and pstack
+        if: steps.find.outputs.pr != ''
+        run: |
+          version=$(sed -n 's/^ARG CLAUDE_CODE_VERSION=//p' agents/factory/box/Dockerfile)
+          npm install -g "@anthropic-ai/claude-code@${version:?}"
+          git clone -q --depth 1 --branch v0.9.57 https://github.com/michael-denyer/pstack-claude "$RUNNER_TEMP/pstack-claude"
+          test -f "$RUNNER_TEMP/pstack-claude/plugins/pstack/skills/maintain-verification-skill/SKILL.md"
+      # The Claude token only; no GitHub token in this step.
+      - name: Check the verify map
+        if: steps.find.outputs.pr != ''
+        working-directory: work
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          timeout --kill-after=60 20m claude -p "$(cat "$BRIEF")" \
+            --plugin-dir "$RUNNER_TEMP/pstack-claude/plugins/pstack" \
+            --permission-mode bypassPermissions \
+            --model claude-haiku-5-5 --max-budget-usd 2 --max-turns 60 \
+            --output-format json < /dev/null > "$RESULT" || echo "claude exited $?"
+      - name: Open the verify-map PR (or say nothing to update)
+        if: steps.find.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.find.outputs.pr }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh auth setup-git
+          node agents/factory/after-merge.mjs publish

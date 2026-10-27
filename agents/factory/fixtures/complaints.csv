@@ -1,0 +1,8 @@
+id,order,complaint,date
+T-101,#1234567,"The flowers never arrived, and the card said ""delivered"".
+Very disappointed.",2026-10-25 09:00
+T-102,FC-1230001,Las flores llegaron marchitas,2026-10-25
+T-103,1230002,"Too expensive for what you get",2026-10-26T10:30:00Z
+T-104,1230003,,2026-10-26
+T-105,1230004,Arrived a day late,
+T-106,,Nobody answered my emails,2026-10-26

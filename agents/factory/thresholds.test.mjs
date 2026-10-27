@@ -13,7 +13,7 @@ const YESTERDAY = "2026-10-13";
 const row = (agent, measure, day, cases, matching) => ({ agent, measure, day, cases, matching });
 
 test("every agent file says what good looks like, with at least one measure that decides", () => {
-  assert.equal(agents.length, 10);
+  assert.equal(agents.length, 11);
   for (const a of agents) {
     assert.ok(a.good.length >= 1 && a.good.length <= 3, `${a.id}: 1 to 3 measures`);
     assert.ok(a.good.some((m) => m.kind === "decides"), `${a.id}: needs a measure that decides`);

@@ -1,4 +1,4 @@
--- The factory's work queue. Garden database only (side project your-project-ref);
+-- The factory's work queue. Garden database only (side project, GARDEN_SUPABASE_URL);
 -- production never runs this file, which is why it is not in supabase/migrations.
 --
 -- factory_tasks: one card = one problem for exactly one agent (an id from
@@ -19,7 +19,8 @@ create table if not exists factory_tasks (
   evidence jsonb not null default '{}'::jsonb,
   -- conversation_escalation | stuck_order | photo_review | garden_score |
   -- below_minimum (a deep-analysis card, docs/agent-factory/agent-minimums.md) |
-  -- human (a card the owner asked for directly)
+  -- human (a card the owner asked for directly, or an idea from garden_ideas) |
+  -- cluster (many rule-gap cases with the same agent and reason, agent_events)
   source text not null,
   status text not null default 'open',
   fingerprint text not null,
@@ -34,14 +35,20 @@ create table if not exists factory_tasks (
 -- Kept equal to the files in agents/thinking/ by agents/factory/cards.test.mjs.
 alter table factory_tasks drop constraint if exists factory_tasks_agent_check;
 alter table factory_tasks add constraint factory_tasks_agent_check check (agent in (
-  'babel', 'bloom', 'concierge', 'cupid', 'hawkeye', 'oracle', 'polyglot', 'quill', 'scout', 'sherlock'
+  'babel', 'bloom', 'concierge', 'cupid', 'hawkeye', 'oracle', 'planner', 'polyglot', 'quill', 'scout', 'sherlock',
+  'factory'
 ));
+-- parked: a factory card the doctor tried twice without a PR; a person decides.
 alter table factory_tasks drop constraint if exists factory_tasks_status_check;
 alter table factory_tasks add constraint factory_tasks_status_check
-  check (status in ('open', 'in-progress', 'done', 'dropped'));
+  check (status in ('open', 'in-progress', 'done', 'dropped', 'parked'));
+-- factory: two failed executor runs of one kind in 24h (the doctor lane,
+-- agent 'factory', worked by .github/workflows/factory-doctor.yml).
+-- error: the same order-loop error in the garden's PostHog, at least twice in
+-- 24h (agent 'factory', brief agents/factory/errors.md, the normal executor).
 alter table factory_tasks drop constraint if exists factory_tasks_source_check;
 alter table factory_tasks add constraint factory_tasks_source_check
-  check (source in ('conversation_escalation', 'stuck_order', 'photo_review', 'garden_score', 'below_minimum', 'human'));
+  check (source in ('conversation_escalation', 'stuck_order', 'photo_review', 'garden_score', 'below_minimum', 'human', 'cluster', 'factory', 'error'));
 
 -- The same signal never makes two live cards. A done or dropped card frees the
 -- fingerprint, so a problem that comes back after a fix gets a fresh card.
