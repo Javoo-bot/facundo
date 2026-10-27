@@ -399,7 +399,7 @@ const ICON = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
 };
 // Runs on already-escaped text: only https links to Claude, GitHub and Slack become clickable.
-const linkify = (s) => s.replace(/https:\/\/(?:claude\.ai|github\.com|[\w-]+\.slack\.com|slack\.com)\/[^\s<"]*/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u.length > 60 ? u.slice(0, 57) + "…" : u}</a>`);
+const linkify = (s) => s;
 // Each manager's Slack channel, where Claude Tag works with the team in one thread per move.
 // app_redirect opens the Slack app when installed, the browser otherwise.
 const SLACK = { team: "T00000000", donna: "C00000001", harvey: "C00000002", louis: "C00000003" };
@@ -440,13 +440,9 @@ function handledChip(item) {
 // The buttons under any item. `copy` is a ready instruction for Claude Code; `ask` lets Claude explain it.
 function actionBar(item, { copy, ask, open, manager, noCopy } = {}) {
   const s = stateOf(item), mine = [];
-  if (open) mine.push(`<a class="btn primary" href="${open.url}" target="_blank" rel="noopener">${icon("ext", 14)}${open.label}</a>`);
+  if (open && !/your-org\//.test(open.url)) mine.push(`<a class="btn primary" href="${open.url}" target="_blank" rel="noopener">${icon("ext", 14)}${open.label}</a>`);
   // With a manager: open its Slack channel and copy the instruction to paste with @Claude.
   // Without one: open Claude Code on the web with the instruction and repo filled in.
-  if (copy && manager && SLACK[manager]) mine.push(`<a class="btn" href="${slackLink(manager)}" target="_blank" rel="noopener" data-slackcopy="${esc(slackPrompt(copy, item))}">${icon("ext", 14)}Open in Slack</a>`,
-    `<a class="btn" href="${codeLink(copy, item)}" target="_blank" rel="noopener">${icon("ext", 14)}Open in Claude Code</a>`);
-  else if (copy) mine.push(`<a class="btn" href="${codeLink(copy, item)}" target="_blank" rel="noopener">${icon("ext", 14)}Open in Claude Code</a>`);
-  if (copy && !noCopy) mine.push(`<button class="btn ghost" type="button" data-copy="${esc(manager ? slackPrompt(copy, item) : copy)}">${icon("copy", 14)}Copy</button>`);
   if (db && canWrite) {
     if (!s) mine.push(`<button class="btn" type="button" data-act="on-it" data-item="${item}">${icon("hand", 14)}I'm on it</button>`,
       `<button class="btn" type="button" data-form="done" data-item="${item}">${icon("check", 14)}Done…</button>`,
@@ -631,7 +627,7 @@ function ranking() {
         <div class="facts">${shown.map(([t, s, fid]) => `<div class="fact ${quiet(fid) ? "is-handled" : ""}"><i class="dot ${quiet(fid) ? "grey" : t}"></i><span class="txt">${s} ${handledChip(fid)}</span></div>`).join("") || `<div class="fact"><i class="dot ok"></i><span>Nothing needs you.</span></div>`}</div>
         <div class="state"><div class="track" aria-label="Where its ${m.nums.cards} cards are now">${track}</div><div class="lab"><span><b>${m.nums.cards} cards</b></span>${lab}</div></div>
         <div class="trends">${trendCell("Never picked up", (h) => h.managers?.[id]?.never, "var(--crit)")}${trendCell("Waiting for your review", (h) => h.managers?.[id]?.review, "#D99A2B")}${trendCell("Red facts", (h) => h.managers?.[id]?.red, "var(--crit)")}</div>
-        <div class="acts"><button class="btn" type="button" data-lane="${id}">Open ${m.name}${extra > 0 ? ` · ${extra} more` : ""}</button><a class="btn ghost" href="${slackLink(id)}" target="_blank" rel="noopener">${icon("ext", 14)}${m.name}'s Slack channel</a></div>
+        <div class="acts"><button class="btn" type="button" data-lane="${id}">Open ${m.name}${extra > 0 ? ` · ${extra} more` : ""}</button></div>
       </div>
     </article>`;
   }).join("");
@@ -646,7 +642,7 @@ function desk() {
     const c = d.ageDays > 6 ? "var(--crit)" : d.ageDays > 3 ? "var(--warn)" : "var(--edge)";
     return `<div class="drow"><i class="dot" style="background:var(--${d.manager})" title="${M[d.manager]?.name ?? ""}"></i>
       <span class="t"><span title="${d.title}"><b>#${d.pr}</b> ${d.title}</span><span class="age" aria-label="${d.ageDays} days waiting"><i style="width:${Math.min(100, (d.ageDays / 14) * 100)}%;background:${c}"></i><b></b></span><span class="tiny muted">${d.ageDays} days · ${M[d.manager]?.name ?? ""}</span></span>
-      <a class="btn" href="${d.url}" target="_blank" rel="noopener">${icon("ext", 14)}Open</a></div>`;
+      </div>`;
   }).join("") : `<p class="empty">Nothing waits for your review.</p>`;
 }
 const EV = { pr: ["pr", "var(--mike)"], merged: ["merge", "var(--ok)"], "came-back": ["back", "var(--crit)"], "gave-up": ["stop", "var(--warn)"], decision: ["ask", "var(--warn)"] };
@@ -665,14 +661,14 @@ function feed() {
       return `<div class="ev human"><span class="ic" style="background:${col}">${icon(ic, 14)}</span><span><b>${esc(who(a))}</b> ${verb}${a.kind === "snoozed" ? ` until ${fmt(a.until)}` : ""}<br><span class="small">${esc(itemLabel(a.item))}</span>${a.note ? `<div class="note">${linkify(a.who ? a.note : esc(a.note))}</div>` : ""}${a.pr || a.thread ? `<div class="acts" style="margin-top:4px">${a.pr ? `<a class="btn ghost" href="${a.pr}" target="_blank" rel="noopener">${icon("pr", 13)}The fix</a>` : ""}${a.thread ? `<a class="btn ghost" href="${a.thread}" target="_blank" rel="noopener">${icon("ext", 13)}Slack thread</a>` : ""}</div>` : ""}<div class="meta">${ago(a.at)}</div></span></div>`;
     }
     const e = x.e, [ic, col] = EV[e.kind] || ["pr", "var(--edge)"];
-    return `<div class="ev"><span class="ic" style="background:${col}">${icon(ic, 14)}</span><span>${e.url ? `<a href="${e.url}" target="_blank" rel="noopener">${e.text}</a>` : e.text}<div class="meta">${M[e.manager]?.name ?? ""} · ${ago(e.at)} · from the data</div></span></div>`;
+    return `<div class="ev"><span class="ic" style="background:${col}">${icon(ic, 14)}</span><span>${e.text}<div class="meta">${M[e.manager]?.name ?? ""} · ${ago(e.at)} · from the data</div></span></div>`;
   }).join("") : `<p class="empty">Nothing yet. Marks the team makes on this page appear here with their names.</p>`;
 }
 
 // ---------------- Screen 2 ----------------
 function whoStrip() {
   const m = M[current];
-  $("#s2-who").innerHTML = `${avatar(current, 60)}<span class="t"><span class="muted small">#${rankOf(current)} by urgency · ${m.role} · reads ${m.reads}</span><span class="lead">${m.lead}</span><span class="acts"><a class="btn" href="${slackLink(current)}" target="_blank" rel="noopener">${icon("ext", 14)}Talk about ${m.name} in Slack</a></span></span>`;
+  $("#s2-who").innerHTML = `${avatar(current, 60)}<span class="t"><span class="muted small">#${rankOf(current)} by urgency · ${m.role} · reads ${m.reads}</span><span class="lead">${m.lead}</span></span>`;
 }
 function sankey() {
   const m = M[current], [total, ...paths] = m.flow, el = $("#sankey");
@@ -766,7 +762,7 @@ function fixes() {
   const c = M[current].cases;
   const step = (v, l) => `<span><i class="${v === true ? "y" : v === false ? "x" : ""}"></i>${l}</span>`;
   $("#fixes").innerHTML = c.length ? c.map(([id, txt, [t, lab], life]) => `<div class="fix">
-      <a class="id" href="${life.url}" target="_blank" rel="noopener">${id}</a>
+      <span class="id">${id}</span>
       <span><span class="t" title="${txt}">${txt}</span><span class="pill ${t}" style="margin-top:4px">${lab}</span></span>
       <span class="life" aria-label="Opened; tests ${life.proven === true ? "prove it" : life.proven === false ? "do not prove it" : "not checked"}; ${life.merged ? "merged" : "not merged"}; ${life.quiet === true ? "stayed quiet" : life.quiet === false ? "came back" : "quiet not known yet"}">${step(true, "Opened")}${step(life.proven, "Proven")}${step(life.merged || null, "Merged")}${step(life.quiet, "Quiet")}</span>
     </div>`).join("") : `<p class="empty">Mike hasn't opened a fix for ${M[current].name}'s agents yet.</p>`;
@@ -806,7 +802,7 @@ function stepThree() {
   const rows = DATA.audit.fixes.filter((f) => f.manager === current);
   const mk = (v) => `<span class="mk ${v}">${{ y: "✓", x: "✗", h: "~", u: "–" }[v]}</span>`;
   $("#matrix").innerHTML = rows.length
-    ? `<table><thead><tr><th>Fix</th><th>Failed before the fix</th><th>Passes now</th><th>Fails with the main fix removed</th><th>What the check found</th></tr></thead><tbody>${rows.map((f) => `<tr><td><a href="https://github.com/your-org/agent-factory/pull/${f.pr}" target="_blank" rel="noopener"><b>#${f.pr}</b></a> ${f.title}</td><td class="c">${mk(f.failedBefore)}</td><td class="c">${mk(f.passNow)}</td><td class="c">${mk(f.fixRemovedFails)}</td><td>${f.note}</td></tr>`).join("")}</tbody></table>`
+    ? `<table><thead><tr><th>Fix</th><th>Failed before the fix</th><th>Passes now</th><th>Fails with the main fix removed</th><th>What the check found</th></tr></thead><tbody>${rows.map((f) => `<tr><td><b>#${f.pr}</b> ${f.title}</td><td class="c">${mk(f.failedBefore)}</td><td class="c">${mk(f.passNow)}</td><td class="c">${mk(f.fixRemovedFails)}</td><td>${f.note}</td></tr>`).join("")}</tbody></table>`
     : `<p class="empty">None of ${m.name}'s fixes has been re-checked yet (last audit ${fmt(DATA.audit.date)}).</p>`;
   const past = audits.filter((a) => a.date !== DATA.audit.date).concat([{ date: DATA.audit.date, fixes: DATA.audit.fixes }]).sort((a, b) => a.date.localeCompare(b.date));
   const rowsH = past.map((a) => { const f = (a.fixes || []).filter((x) => x.manager === current && x.verdict !== "no-fix"); return { date: a.date, checked: f.length, fp: f.filter((x) => x.falsePass).length }; }).filter((x) => x.checked);
