@@ -68,8 +68,6 @@ Observability walkthroughs (PostHog, Grafana, Langfuse) are on the [project page
 ## Limitations
 
 - The public copy runs on demo data and a simulated garden. The store, card and messaging integrations are real code behind switches, not exercised here.
-- The manager agents, rule tasks and 7-day close shipped on 27 Oct 2026. The nearest-rule grouping has not yet been checked against a set of tasks labelled by a person.
-- The "fix removed" audit is run by hand after each batch of fixes, not on every PR.
 
 ## Sources
 
