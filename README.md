@@ -81,6 +81,12 @@ flowchart LR
 
 Each step is a setting, not hard-coded: which orders are in scope, how far to look for partners, how long an offer waits, how payments are split and when a photo needs a person. Every way the loop can fail, and how it's handled, is mapped in [`dashboard/lib/lifecycle.ts`](dashboard/lib/lifecycle.ts).
 
+### The agent factory
+
+<img src="docs/media/agent-factory.png" alt="How the agent factory works: problems become tasks in Supabase, GitHub Actions runs a manager agent and a coding agent on each one, the fix arrives as a pull request, and the Control Room shows it all every hour" width="100%">
+
+<sub>Dashed parts are being built.</sub>
+
 ---
 
 ## Tech stack
