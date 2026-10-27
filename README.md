@@ -33,9 +33,9 @@ Every step is a setting, not hard-coded. Every way an order can break, and how i
 4. The task closes only when the rule stays **quiet for 7 days** after the merge. A new alert reopens the same task.
 5. The human decides money and merges, from one page.
 
-<img src="docs/media/control-room.png" alt="Manager Control Room: today's moves, where every task is, managers ranked by how many facts need a person" width="100%">
+<img src="docs/media/control-room.png" alt="Manager Control Room with demo data: today's moves, where every task is, managers ranked by how many facts need a person" width="100%">
 
-That page is the [Control Room](docs/agent-factory/garden-1.2/part-4/). It shows numbers, never verdicts, and compares each manager only with its own past. Two more pages behind it: the [rule map](docs/agent-factory/garden-1.2/) (every rule with the alerts and tasks it caused) and [trouble paths](docs/agent-factory/garden-1.2/part-2/) (the steps an agent takes once something goes wrong, drawn from its event log).
+That page is the [Control Room](docs/agent-factory/garden-1.2/part-4/), shown here with demo data. It shows numbers, never verdicts, and compares each manager only with its own past. Two more pages behind it: the [rule map](docs/agent-factory/garden-1.2/) (every rule with the alerts and tasks it caused) and [trouble paths](docs/agent-factory/garden-1.2/part-2/) (the steps an agent takes once something goes wrong, drawn from its event log).
 
 ## Three decisions
 
