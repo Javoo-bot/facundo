@@ -39,11 +39,11 @@ That page is the [Control Room](docs/agent-factory/garden-1.2/part-4/), shown he
 
 ## Three decisions
 
-**A fix counts when the signal goes quiet, not when tests pass.** Tests are necessary, not sufficient. In the audit of 26 Oct 2026, 4 of 6 agent fixes still passed their tests with the main fix removed. Each fix is now re-run that way ([`test-audit.json`](docs/agent-factory/garden-1.2/part-4/test-audit.json)), and the task's last word is the rule staying quiet.
+**A fix is done when the problem stops, not when its tests pass.** When we checked the agents' fixes, four of six still passed their tests with the fix itself taken out. So every fix is now checked that way, and a task closes only once its problem has stayed away for a week.
 
-**One gate for all automation.** [`isInWorkingSet()`](dashboard/lib/workingSet.ts) decides which orders the agents may touch. Everything else only displays. The gate exists because on 4 Aug 2026 automation reached orders nobody meant it to; a test fails if its two copies drift apart.
+**One switch decides which orders the agents may touch.** Everything else can only look. It exists because automation once reached orders nobody had meant to include.
 
-**Nothing an agent did alone touches money, logins or senders.** Those paths are protected: the PR opens with "Needs a person" and waits. Partners used for testing can never receive a real card ([`payoutMath.ts`](dashboard/lib/payoutMath.ts)).
+**Money, logins and messages to customers always wait for a person.** An agent can propose a change there, but the proposal is marked "Needs a person" and stops. A partner used for testing can never receive a real payment.
 
 ## Run it locally
 
