@@ -2,8 +2,6 @@
 
 <img src="docs/media/banner.png" alt="Facundo" width="100%">
 
-# Facundo
-
 **AI agents deliver high-value orders through local partners. When an order still needs a person, the system treats that as a bug and fixes itself.**
 
 [How it works](#how-it-works) · [How it fixes itself](#how-it-fixes-itself) · [Three decisions](#three-decisions) · [Run it locally](#run-it-locally) · [Sources](#sources)
