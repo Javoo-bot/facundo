@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-26",
+  "how": "Each fix put back to the old code and its tests run again; then only the main fix line removed. See docs/agent-factory/topics/3-check-one-real-test.md. Marks: y yes, x no, h yes but for the wrong reason, u nothing to check.",
+  "fixes": [
+    { "pr": 10, "manager": "donna", "title": "Retry when the AI is busy", "failedBefore": "y", "passNow": "y", "fixRemovedFails": "y", "verdict": "proves-the-fix", "falsePass": false,
+      "note": "4 tests fail on the old code; 4 guard tests fail when their rule is broken." },
+    { "pr": 11, "manager": "donna", "title": "Assistant not confident", "failedBefore": "x", "passNow": "y", "fixRemovedFails": "x", "verdict": "partly", "falsePass": true,
+      "note": "The test named as proof turns the Planner on by hand, so it can't see the switch bug." },
+    { "pr": 12, "manager": "donna", "title": "Money questions", "failedBefore": "h", "passNow": "y", "fixRemovedFails": "x", "verdict": "partly", "falsePass": true,
+      "note": "Fails only on two missing labels. The main change has no test." },
+    { "pr": 13, "manager": "harvey", "title": "No florist in range", "failedBefore": "y", "passNow": "y", "fixRemovedFails": "h", "verdict": "partly", "falsePass": true,
+      "note": "The AI-name fix is tested; the cost-recording step is not." },
+    { "pr": 37, "manager": "donna", "title": "Which florist this is", "failedBefore": "h", "passNow": "y", "fixRemovedFails": "x", "verdict": "partly", "falsePass": true,
+      "note": "Fails only because a new file is missing. All 6 pass with the wiring line removed." },
+    { "pr": 38, "manager": "donna", "title": "Assistant failed", "failedBefore": "u", "passNow": "y", "fixRemovedFails": "u", "verdict": "no-fix", "falsePass": false,
+      "note": "Notes only, no fix. The 73 existing tests pass." }
+  ]
+}

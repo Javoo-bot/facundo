@@ -1,0 +1,310 @@
+<meta charset="utf-8">
+<title>Trouble Paths</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: corporate-trust, light only by choice (same tokens as rule-map.html).
+   Header + totals, then two step graphs (at work, at the desk) beside a detail panel, then the roots. */
+:root {
+  color-scheme: light;
+  --bg: #FFFFFF; --panel: #F8FAFC; --inset: #F1F5F9;
+  --ink: #0F1722; --body: #3B4657; --muted: #5B6777;
+  --line: #E1E7EF; --line-strong: #C7D0DC; --edge: #A9B4C2;
+  --accent: #1F4FE0; --accent-wash: #EAF0FD;
+  --ok: #0E7F4B; --crit: #C0362C; --warn: #A86400;
+  --ok-wash: #E8F4EE; --crit-wash: #FBECEA; --warn-wash: #FBF3E6;
+  --harvey: #2D6A73; --donna: #8A5A1F; --louis: #7B3F8C; --jessica: #0F1722;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+body { background: var(--bg); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; color: var(--ink); font-weight: 600; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: clamp(1.8rem, 3.2vw, 2.2rem); letter-spacing: -.01em; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.box { width: 14px; height: 10px; border-radius: 3px; display: inline-block; flex: none; border: 1px solid; }
+
+.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end; }
+.top .intro { display: grid; gap: 4px; max-width: 74ch; }
+.stats { display: grid; grid-template-columns: repeat(4, auto); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stat { padding: 8px 14px; display: grid; border-left: 1px solid var(--line); }
+.stat:first-child { border-left: 0; }
+.stat b { font-size: 20px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.alert { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; border: 1px solid var(--crit); background: var(--crit-wash); border-radius: 8px; color: var(--ink); }
+.alert b { color: var(--crit); }
+
+.section { display: grid; gap: 10px; border-top: 1px solid var(--line-strong); padding-top: 18px; }
+.section-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; justify-content: space-between; }
+.section-head p { max-width: 80ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+.graph { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-width: 0; background: var(--bg); }
+.graph .scroll { overflow: auto; max-height: 78vh; }
+.graph svg { display: block; }
+.foot { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted); }
+.foot span { display: inline-flex; gap: 6px; align-items: center; }
+.foot .hint { margin-left: auto; }
+
+.panel { border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 8px; min-width: 0; background: var(--bg); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: 78vh; overflow: auto; }
+.panel .k { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.panel ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.panel li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.panel li span:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+.panel li .pct { color: var(--muted); font-size: 12px; min-width: 3.5em; }
+
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; font-weight: 500; border: 0; background: var(--bg); color: var(--body); padding: 6px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #FFFFFF; }
+.seg button:hover:not([aria-pressed="true"]) { background: var(--inset); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+svg .node rect { stroke-width: 1.5px; }
+svg .node text { font-family: var(--sans); }
+svg .node .t { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+svg .node .c { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+svg .node { cursor: pointer; }
+svg .node.sel rect { stroke: var(--accent); stroke-width: 3px; }
+svg .e path { fill: none; }
+svg .e .hit { stroke: transparent; stroke-width: 14px; }
+svg .e text { font-family: var(--sans); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+svg .dim { opacity: .12; }
+svg .hl path.line { stroke: var(--accent) !important; }
+svg .hl text { fill: var(--accent) !important; }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: #FFFFFF; font-size: 12.5px; padding: 6px 9px; border-radius: 6px; max-width: 280px; z-index: 20; }
+
+.roots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 12px; }
+.root { font: inherit; text-align: left; color: var(--body); cursor: pointer; border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 6px; align-content: start; background: var(--bg); min-width: 0; transition: border-color .12s, background .12s; }
+.root:hover { border-color: var(--accent); background: var(--panel); }
+.rhead { display: flex; gap: 8px; align-items: center; }
+.why { font-size: 14px; }
+.seen { font-size: 12.5px; color: var(--muted); }
+.root[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.root header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.crit { color: var(--crit); background: var(--crit-wash); }
+.pill.warn { color: var(--warn); background: var(--warn-wash); }
+.who { font-size: 12px; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.root dl { margin: 0; display: grid; gap: 6px; }
+.root dt { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.root dd { margin: 0; font-size: 14px; }
+.root ul { margin: 0; padding-left: 18px; font-size: 13px; }
+.root .show { justify-self: start; font: inherit; font-size: 13px; font-weight: 500; color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+.tablebox { border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+
+@media (max-width: 1080px) { .main { grid-template-columns: 1fr; } .panel { position: static; max-height: none; } }
+@media (max-width: 760px) { .top { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, auto); } .stat:nth-child(3) { border-left: 0; } .foot .hint { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="intro">
+      <p class="muted" style="font-size:12px;font-weight:500;letter-spacing:.02em">Garden 1.2 · Part 2</p>
+      <h1>Trouble paths</h1>
+      <p>What the managers' agents do once something goes wrong. Thick lines are the usual path; red and amber lines are trouble.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div id="silent"></div>
+
+  <section class="section" id="work">
+    <div class="section-head">
+      <h2>At work: a case goes wrong</h2>
+      <p class="muted" id="work-sub"></p>
+    </div>
+    <div class="graph"><svg id="g-work" role="img" aria-label="Step graph of cases at work"></svg><div class="foot" id="foot-work"></div></div>
+  </section>
+
+  <section class="section" id="desk">
+    <div class="section-head">
+      <h2>At the desk: the trouble becomes a card</h2>
+      <div class="seg" id="mgr" role="group" aria-label="Manager"></div>
+    </div>
+    <p class="muted" id="desk-sub"></p>
+    <div class="graph"><svg id="g-desk" role="img" aria-label="Step graph of factory cards"></svg><div class="foot" id="foot-desk"></div></div>
+  </section>
+
+  <section class="section" id="why">
+    <div class="section-head">
+      <h2>Why it happens</h2>
+      <p class="muted">Click one to see it on the graph.</p>
+    </div>
+    <div class="roots" id="roots"></div>
+  </section>
+
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script>
+const DATA = {"builtAt":"2026-10-26T14:08:13.749Z","window":{"firstEventAt":"2026-10-14T17:13:12.018691+00:00","lastEventAt":"2026-10-23T18:50:00.176945+00:00","firstCardAt":"2026-10-13T16:55:00.12233+00:00"},"silent":{"hours":67,"since":"2026-10-23T18:50:00.176945+00:00"},"totals":{"events":27415,"cases":3480,"cards":119,"runs":29,"hiddenWork":10562,"workMin":111},"work":{"nodes":[{"id":"client-writes","label":"A client writes in","kind":"step","owner":"donna","cases":1774},{"id":"closed","label":"Closes it as handled","kind":"ok","owner":"donna","cases":1226},{"id":"hand-off","label":"Hands it to a person","kind":"person","owner":"donna","cases":816},{"id":"money-held","label":"Money step waits for the team","kind":"held","owner":"jessica","cases":382},{"id":"rule-gap","label":"Writes down a rule gap","kind":"held","owner":"donna","cases":1293},{"id":"apologise","label":"Apologises, offers a new date","kind":"ok","owner":"donna","cases":527},{"id":"reoffer-failed","label":"Reoffer wider fails","kind":"fail","owner":"harvey","cases":386},{"id":"cold-failed","label":"Cold offer fails","kind":"fail","owner":"harvey","cases":368},{"id":"case-held","label":"Case waits for the team","kind":"held","owner":"donna","cases":275},{"id":"model-error","label":"Model call fails","kind":"fail","owner":"donna","cases":72},{"id":"florist-asks","label":"A florist asks Concierge","kind":"step","owner":"donna","cases":1630},{"id":"answered","label":"Concierge answers alone","kind":"ok","owner":"donna","cases":878},{"id":"to-cx","label":"Concierge hands it to CX","kind":"person","owner":"donna","cases":230},{"id":"proposes","label":"Concierge passes it to the planner","kind":"step","owner":"donna","cases":1102},{"id":"planner-takes","label":"Planner takes the case","kind":"step","owner":"donna","cases":1102},{"id":"list-ran-out","label":"No florist left on the list","kind":"fail","owner":"harvey","cases":204}],"edges":[{"from":"florist-asks","to":"proposes","count":1790},{"from":"florist-asks","to":"answered","count":1441},{"from":"proposes","to":"planner-takes","count":1422},{"from":"answered","to":"florist-asks","count":948},{"from":"client-writes","to":"closed","count":744},{"from":"planner-takes","to":"florist-asks","count":702},{"from":"hand-off","to":"rule-gap","count":469},{"from":"money-held","to":"rule-gap","count":413},{"from":"client-writes","to":"hand-off","count":412},{"from":"client-writes","to":"money-held","count":314},{"from":"rule-gap","to":"case-held","count":308},{"from":"client-writes","to":"apologise","count":263},{"from":"planner-takes","to":"closed","count":254},{"from":"model-error","to":"model-error","count":245},{"from":"florist-asks","to":"to-cx","count":238},{"from":"planner-takes","to":"reoffer-failed","count":169},{"from":"reoffer-failed","to":"planner-takes","count":168},{"from":"planner-takes","to":"cold-failed","count":165},{"from":"closed","to":"rule-gap","count":155},{"from":"planner-takes","to":"hand-off","count":150},{"from":"reoffer-failed","to":"list-ran-out","count":134},{"from":"closed","to":"closed","count":131},{"from":"proposes","to":"hand-off","count":120},{"from":"cold-failed","to":"planner-takes","count":111}],"hidden":10562},"desk":{"all":{"nodes":[{"id":"opened","label":"Card opens","kind":"edge","owner":null,"cases":119},{"id":"needs-person","label":"Mike says it needs a person","kind":"person","owner":null,"cases":10},{"id":"waiting","label":"Waits for the owner","kind":"held","owner":null,"cases":17},{"id":"crashed","label":"Mike's run crashes","kind":"fail","owner":null,"cases":1},{"id":"pr","label":"Mike opens a fix PR","kind":"ok","owner":null,"cases":12},{"id":"done","label":"Card closed","kind":"ok","owner":null,"cases":13},{"id":"dropped","label":"Card dropped","kind":"person","owner":null,"cases":4},{"id":"gave-up","label":"Mike gives up","kind":"held","owner":null,"cases":4},{"id":"never","label":"Never worked yet","kind":"fail","owner":null,"cases":85}],"edges":[{"from":"opened","to":"never","count":85},{"from":"opened","to":"pr","count":10},{"from":"opened","to":"needs-person","count":9},{"from":"needs-person","to":"waiting","count":9},{"from":"pr","to":"waiting","count":8},{"from":"opened","to":"done","count":6},{"from":"pr","to":"done","count":4},{"from":"opened","to":"dropped","count":4},{"from":"opened","to":"gave-up","count":4},{"from":"gave-up","to":"gave-up","count":2},{"from":"gave-up","to":"done","count":2},{"from":"opened","to":"crashed","count":1},{"from":"crashed","to":"pr","count":1},{"from":"gave-up","to":"pr","count":1},{"from":"gave-up","to":"needs-person","count":1},{"from":"needs-person","to":"done","count":1}],"hidden":0},"harvey":{"nodes":[{"id":"opened","label":"Card opens","kind":"edge","owner":null,"cases":8},{"id":"needs-person","label":"Mike says it needs a person","kind":"person","owner":null,"cases":1},{"id":"waiting","label":"Waits for the owner","kind":"held","owner":null,"cases":4},{"id":"crashed","label":"Mike's run crashes","kind":"fail","owner":null,"cases":1},{"id":"pr","label":"Mike opens a fix PR","kind":"ok","owner":null,"cases":5},{"id":"dropped","label":"Card dropped","kind":"person","owner":null,"cases":2},{"id":"gave-up","label":"Mike gives up","kind":"held","owner":null,"cases":1},{"id":"done","label":"Card closed","kind":"ok","owner":null,"cases":2}],"edges":[{"from":"pr","to":"waiting","count":3},{"from":"opened","to":"pr","count":3},{"from":"opened","to":"dropped","count":2},{"from":"pr","to":"done","count":2},{"from":"opened","to":"needs-person","count":1},{"from":"needs-person","to":"waiting","count":1},{"from":"opened","to":"crashed","count":1},{"from":"crashed","to":"pr","count":1},{"from":"opened","to":"gave-up","count":1},{"from":"gave-up","to":"gave-up","count":1},{"from":"gave-up","to":"pr","count":1}],"hidden":0},"donna":{"nodes":[{"id":"opened","label":"Card opens","kind":"edge","owner":null,"cases":101},{"id":"dropped","label":"Card dropped","kind":"person","owner":null,"cases":2},{"id":"pr","label":"Mike opens a fix PR","kind":"ok","owner":null,"cases":5},{"id":"done","label":"Card closed","kind":"ok","owner":null,"cases":5},{"id":"waiting","label":"Waits for the owner","kind":"held","owner":null,"cases":10},{"id":"gave-up","label":"Mike gives up","kind":"held","owner":null,"cases":2},{"id":"needs-person","label":"Mike says it needs a person","kind":"person","owner":null,"cases":6},{"id":"never","label":"Never worked yet","kind":"fail","owner":null,"cases":84}],"edges":[{"from":"opened","to":"never","count":84},{"from":"opened","to":"needs-person","count":6},{"from":"needs-person","to":"waiting","count":6},{"from":"opened","to":"pr","count":5},{"from":"pr","to":"waiting","count":4},{"from":"opened","to":"dropped","count":2},{"from":"opened","to":"gave-up","count":2},{"from":"gave-up","to":"done","count":2},{"from":"opened","to":"done","count":2},{"from":"pr","to":"done","count":1}],"hidden":0},"louis":{"nodes":[{"id":"opened","label":"Card opens","kind":"edge","owner":null,"cases":6},{"id":"pr","label":"Mike opens a fix PR","kind":"ok","owner":null,"cases":2},{"id":"done","label":"Card closed","kind":"ok","owner":null,"cases":2},{"id":"waiting","label":"Waits for the owner","kind":"held","owner":null,"cases":3},{"id":"needs-person","label":"Mike says it needs a person","kind":"person","owner":null,"cases":2},{"id":"gave-up","label":"Mike gives up","kind":"held","owner":null,"cases":1},{"id":"never","label":"Never worked yet","kind":"fail","owner":null,"cases":1}],"edges":[{"from":"opened","to":"pr","count":2},{"from":"needs-person","to":"waiting","count":2},{"from":"pr","to":"done","count":1},{"from":"pr","to":"waiting","count":1},{"from":"opened","to":"needs-person","count":1},{"from":"opened","to":"gave-up","count":1},{"from":"gave-up","to":"gave-up","count":1},{"from":"gave-up","to":"needs-person","count":1},{"from":"opened","to":"never","count":1},{"from":"opened","to":"done","count":1}],"hidden":0},"jessica":{"nodes":[{"id":"opened","label":"Card opens","kind":"edge","owner":null,"cases":4},{"id":"needs-person","label":"Mike says it needs a person","kind":"person","owner":null,"cases":1},{"id":"done","label":"Card closed","kind":"ok","owner":null,"cases":4}],"edges":[{"from":"opened","to":"done","count":3},{"from":"opened","to":"needs-person","count":1},{"from":"needs-person","to":"done","count":1}],"hidden":0}},"runCauses":{"designed":11,"crashed":1,"person":3,"test":2},"roots":[{"id":"split","graph":"desk","tone":"crit","owner":"jessica","highlight":[["opened","never"]],"title":"One problem is filed as many cards","why":"Each client email's subject becomes part of the card's name, so every email opens a new card.","seen":"70 of 119 cards share one reason; 70 of them were never worked.","root":"The planner writes the client's email subject into its hand-off reason, and the sweep turns each distinct reason into its own card. Every new email from a client becomes a new card, so the queue fills with copies of one rule: a client wrote in, and a person answers.","evidence":["card key concierge:conversation_escalation:planner:the client wrote about their order:<subject>","origin/garden dashboard/lib/conversations.ts:265","agents/factory/cards.mjs:147 (fingerprint)"],"alone":"Grouping cards is factory code, so the change needs a person (the doctor lane). Once it lands, closing the duplicate cards is a call an agent can make alone and log."},{"id":"designed","graph":"both","tone":"warn","owner":"donna","highlight":[["hand-off","rule-gap"],["money-held","rule-gap"],["gave-up","gave-up"],["opened","gave-up"]],"title":"Working as designed is filed as a fault","why":"A hand-off the rules ask for looks the same as one caused by a fault, so Mike chases problems that aren't there.","seen":"At work: 425 of 1554 rule gaps name a hold the rules require (money, terms, a person decides). At the desk: 11 of 17 runs that did not end in a fix said the card was working as designed, already fixed, or a practice order.","root":"A hand-off the rule asks for and a hand-off caused by a fault leave the same mark. The planner writes a rule gap for both, and the sweep counts escalations without asking whether the situation's handling in lifecycle.ts already says to escalate. Mike then spends a run finding out that nothing is broken.","evidence":["rule_gap rows: “only the team decides”, “Policy holds money decisions”","factory_runs notes: “working as designed”, “already fixed”, “practice orders”","lifecycle.ts branches with status handled"],"alone":"Dropping a card whose situation is handled by design serves an existing rule. Topic 4 can let a manager do it alone and list it for the weekly review."},{"id":"ladder","graph":"work","tone":"crit","owner":"harvey","highlight":[["swap-failed","planner-takes"],["reoffer-failed","planner-takes"],["reoffer-failed","list-ran-out"],["cold-failed","list-ran-out"],["cold-failed","rule-gap"],["planner-takes","cold-failed"]],"title":"No florist nearby: the planner climbs a ladder that never holds","why":"The planner keeps trying steps that almost never work here, because the area has no spare florists.","seen":"Reoffer wider worked 7 of 429 times, cold offer 0 of 391, swap florist 6 of 125. 367 cases tried two or more of them and failed each time; 187 of those ended waiting for the team.","root":"When the list runs out, the planner picks the next recovery step from the same list every time, without looking at how often that step has worked. In the garden there is nobody new within 45 km and no shop outside the network on the list, so each step fails for the same reason and the next one is tried anyway. The cause sits upstream: the area has no spare florists.","evidence":["step details: “nobody new within 45 km”, “no shop outside the network on the list”","dashboard/lib/planPolicy.ts (garden branch)","Harvey's rule area-has-florists"],"alone":"Skipping a step that has not worked in the last 50 tries on the same reason serves the existing rule. A planner change like that can go through the free lane."},{"id":"retry","graph":"work","tone":"crit","owner":"donna","highlight":[["model-error","model-error"]],"title":"A full model pool is retried, not avoided","why":"The planner retries a full model pool again and again instead of switching to the fallback.","seen":"324 model calls failed; 286 were “no room left” in the free model pool (HTTP 429). 30 cases retried 5 or more times in a row (longest 9). The fallback model was used 0 times.","root":"The planner retries the same pool while the pool is full, and the fallback path never fires, so a busy hour turns into a run of identical failures and then a rule gap that blames the message (“the planner model keeps failing on messages like this one”). That rule gap is the wrong lesson: the message was fine.","evidence":["model_error detail: pool \"tools\" has no deployment with room left","plan rows with fallback = true: 0","topic 5, question 4 (retry loops)"],"alone":"Backing off and switching to the fallback is a fix for a problem the rule already covers. It touches the model budget (the $1 a day setup), so the owner sees it before merge."},{"id":"queue","graph":"desk","tone":"warn","owner":"jessica","highlight":[["opened","never"],["gave-up","gave-up"],["pr","waiting"],["needs-person","waiting"]],"title":"Cards arrive faster than Mike works them, and none ever close","why":"Mike works one card per run, twice a day, and nothing closes a card when its problem stops.","seen":"9.2 cards a day open, 2.3 runs a day work them. Median wait for a first run: 3.8 days. 85 cards never worked, 17 waiting with a PR or a question. Cards retried after giving up twice: scout, hawkeye.","root":"The executor takes one card per run, twice a day, and nothing ever closes a card: the sweep refreshes cards but does not close them when the signal stops. A card that gave up comes back after 24 hours with the same brief, so Mike repeats the same search.","evidence":["agents/factory/README.md, step 6 (“not built yet”)",".github/workflows/factory-execute.yml (07:00 and 13:00 UTC)","factory_runs per card"],"alone":"Fixing the split cards and the designed-behaviour cards first shrinks the queue without more runs. A gave-up card should go back to its manager for a new brief, not straight back to Mike."}]};
+const $ = (s) => document.querySelector(s);
+const fmt = (n) => Number(n).toLocaleString("en-GB");
+const day = (s) => s ? new Date(s).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }) : "—";
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const NS = "http://www.w3.org/2000/svg";
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const KIND = {
+  ok: { fill: "--ok-wash", stroke: "--ok", label: "Worked" },
+  person: { fill: "--inset", stroke: "--line-strong", label: "Handed on by design" },
+  held: { fill: "--warn-wash", stroke: "--warn", label: "Waits or gives up" },
+  fail: { fill: "--crit-wash", stroke: "--crit", label: "Failed" },
+  step: { fill: "--bg", stroke: "--line-strong", label: "Step" },
+  edge: { fill: "--panel", stroke: "--muted", label: "Start or end" },
+};
+const MGR = { harvey: "Harvey", donna: "Donna", louis: "Louis", jessica: "Jessica" };
+const edgeTone = (kind) => kind === "fail" ? "--crit" : kind === "held" ? "--warn" : "--edge";
+
+// ---- Header ----
+const T = DATA.totals;
+$("#stats").innerHTML = [
+  [fmt(T.cases), "cases with trouble"], [fmt(T.events), "steps logged"], [fmt(T.cards), "cards"], [fmt(T.runs), "runs by Mike"],
+].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+if (DATA.silent) $("#silent").innerHTML = `<div class="alert"><b>Silent</b><span>The garden has logged no agent steps for ${DATA.silent.hours} hours (last one ${day(DATA.silent.since)}). The graphs below stop there. Check the garden before reading them as today's behaviour.</span></div>`;
+$("#work-sub").textContent = `${day(DATA.window.firstEventAt)} – ${day(DATA.window.lastEventAt)} · 24 busiest lines`;
+$("#desk-sub").textContent = `Cards since ${day(DATA.window.firstCardAt)} · built ${day(DATA.builtAt)}`;
+
+// ---- Graph ----
+const tip = $("#tip");
+function showTip(ev, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = Math.min(ev.clientX + 12, innerWidth - 300) + "px"; tip.style.top = (ev.clientY + 12) + "px"; }
+const hideTip = () => { tip.hidden = true; };
+
+function el(name, attrs, parent) { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+function wrapLabel(s, max = 24) {
+  const words = s.split(" "); const lines = [""];
+  for (const w of words) { const l = lines[lines.length - 1]; if ((l + " " + w).trim().length > max && l) lines.push(w); else lines[lines.length - 1] = (l + " " + w).trim(); }
+  return lines.slice(0, 2);
+}
+function smooth(pts) {
+  if (pts.length < 3) return `M${pts[0].x},${pts[0].y} L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`;
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ` C${p1.x + (p2.x - p0.x) / 6},${p1.y + (p2.y - p0.y) / 6} ${p2.x - (p3.x - p1.x) / 6},${p2.y - (p3.y - p1.y) / 6} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
+
+const views = {};
+function draw(id, graph) {
+  const svg = $("#g-" + id); svg.innerHTML = "";
+  const g = new dagre.graphlib.Graph({ multigraph: false });
+  g.setGraph({ rankdir: "LR", nodesep: 22, ranksep: 70, edgesep: 14, marginx: 24, marginy: 30 });
+  g.setDefaultEdgeLabel(() => ({}));
+  const byId = Object.fromEntries(graph.nodes.map((n) => [n.id, n]));
+  for (const n of graph.nodes) { const lines = wrapLabel(n.label); g.setNode(n.id, { width: Math.max(...lines.map((l) => l.length)) * 7.2 + 34, height: 22 + lines.length * 16, lines }); }
+  for (const e of graph.edges) if (e.from !== e.to) g.setEdge(e.from, e.to, { count: e.count });
+  dagre.layout(g);
+  const W = g.graph().width, H = g.graph().height + 20;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.width = "100%"; svg.style.height = "auto"; svg.style.maxWidth = `${Math.round(W * 1.15)}px`; svg.style.margin = "0 auto";
+  const defs = el("defs", {}, svg);
+  for (const t of ["--crit", "--warn", "--edge", "--accent"]) {
+    const m = el("marker", { id: `ar-${id}${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M0,0 L10,5 L0,10 z", fill: css(t) }, m);
+  }
+  const max = Math.max(...graph.edges.map((e) => e.count));
+  const width = (c) => 1.5 + 7 * Math.sqrt(c / max);
+  const outOf = {}; for (const e of graph.edges) outOf[e.from] = (outOf[e.from] || 0) + e.count;
+  const labelled = new Set(graph.edges.slice().sort((a, b) => b.count - a.count).slice(0, 14).map((e) => e.from + ">" + e.to));
+  const eLayer = el("g", {}, svg), nLayer = el("g", {}, svg);
+  const edgeEls = [];
+  for (const e of graph.edges) {
+    const tone = edgeTone(byId[e.to].kind);
+    const grp = el("g", { class: "e" }, eLayer); grp.dataset.k = e.from + ">" + e.to;
+    let d, lx, ly;
+    if (e.from === e.to) {
+      const n = g.node(e.from); const x = n.x, y = n.y - n.height / 2;
+      d = `M${x - 14},${y} C${x - 30},${y - 40} ${x + 30},${y - 40} ${x + 14},${y}`; lx = x; ly = y - 34;
+    } else {
+      const pts = g.edge(e.from, e.to).points; d = smooth(pts); const m = pts[Math.floor(pts.length / 2)]; lx = m.x; ly = m.y - 6;
+    }
+    el("path", { d, class: "hit" }, grp);
+    el("path", { d, class: "line", stroke: css(tone), "stroke-width": width(e.count), "stroke-linecap": "round", "marker-end": `url(#ar-${id}${tone})` }, grp);
+    if (labelled.has(grp.dataset.k) || e.from === e.to) { const t = el("text", { x: lx, y: ly, "text-anchor": "middle", fill: css(tone === "--edge" ? "--muted" : tone) }, grp); t.textContent = (e.from === e.to ? "×" : "") + fmt(e.count); }
+    const pct = Math.round(100 * e.count / outOf[e.from]);
+    grp.addEventListener("mousemove", (ev) => showTip(ev, `<b>${esc(byId[e.from].label)}</b> → <b>${esc(byId[e.to].label)}</b><br>${fmt(e.count)} times, ${pct}% of what follows the first step`));
+    grp.addEventListener("mouseleave", hideTip);
+    edgeEls.push({ e, grp });
+  }
+  const nodeEls = {};
+  for (const n of graph.nodes) {
+    const p = g.node(n.id), k = KIND[n.kind] || KIND.step;
+    const grp = el("g", { class: "node", transform: `translate(${p.x - p.width / 2},${p.y - p.height / 2})`, tabindex: 0, role: "button", "aria-label": `${n.label}, ${n.cases} cases` }, nLayer);
+    el("rect", { width: p.width, height: p.height, rx: 7, fill: css(k.fill), stroke: css(k.stroke) }, grp);
+    let x = 12;
+    if (n.owner) { el("circle", { cx: 14, cy: 15, r: 4.5, fill: css("--" + n.owner) }, grp); x = 24; }
+    p.lines.forEach((l, i) => { const t = el("text", { x, y: 18 + i * 16, class: "t" }, grp); t.textContent = l; });
+    const c = el("text", { x, y: 18 + p.lines.length * 16, class: "c" }, grp); c.textContent = `${fmt(n.cases)} ${id === "desk" ? "cards" : "cases"}`;
+    const pick = () => select(id, n.id);
+    grp.addEventListener("click", pick); grp.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } });
+    nodeEls[n.id] = grp;
+  }
+  views[id] = { graph, byId, edgeEls, nodeEls };
+  svg.addEventListener("click", (ev) => { if (!ev.target.closest(".node")) select(id, null); });
+}
+
+function clearMarks(v) { for (const { grp } of v.edgeEls) grp.classList.remove("dim", "hl"); for (const g of Object.values(v.nodeEls)) g.classList.remove("sel", "dim"); }
+function select(id, nodeId) {
+  const v = views[id]; clearMarks(v); document.querySelectorAll(".root").forEach((r) => r.setAttribute("aria-pressed", "false"));
+  if (nodeId) {
+    v.nodeEls[nodeId].classList.add("sel");
+    for (const { e, grp } of v.edgeEls) if (e.from !== nodeId && e.to !== nodeId) grp.classList.add("dim");
+  }
+}
+function highlight(id, pairs) {
+  const v = views[id]; if (!v) return; clearMarks(v);
+  const keys = new Set(pairs.map(([a, b]) => a + ">" + b));
+  const nodes = new Set(pairs.flat());
+  for (const { grp } of v.edgeEls) grp.classList.add(keys.has(grp.dataset.k) ? "hl" : "dim");
+  for (const [k, g] of Object.entries(v.nodeEls)) if (!nodes.has(k)) g.classList.add("dim");
+}
+
+function foot(id) {
+  const kinds = id === "desk" ? ["ok", "person", "held", "fail"] : ["ok", "person", "held", "fail", "step"];
+  $("#foot-" + id).innerHTML = kinds.map((k) => `<span><i class="box" style="background:var(${KIND[k].fill});border-color:var(${KIND[k].stroke})"></i>${KIND[k].label}</span>`).join("")
+    + (id === "work" ? Object.entries(MGR).map(([k, l]) => `<span><i class="sw" style="background:var(--${k})"></i>${l}</span>`).join("") : "")
+    + `<span class="hint">Click a step to isolate its lines · ×n = repeated</span>`;
+}
+
+draw("work", DATA.work); foot("work");
+let mgr = "all";
+function drawDesk() {
+  $("#mgr").innerHTML = ["all", "harvey", "donna", "louis", "jessica"].map((m) => `<button type="button" aria-pressed="${m === mgr}" data-m="${m}">${m === "all" ? "All" : `<i class="sw" style="background:var(--${m})"></i>${MGR[m]}`}</button>`).join("");
+  $("#mgr").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { mgr = b.dataset.m; drawDesk(); }));
+  const g = DATA.desk[mgr];
+  if (!g.nodes.length) { $("#g-desk").innerHTML = ""; $("#desk-sub").textContent = `No cards for ${MGR[mgr]} yet.`; return; }
+  draw("desk", g);
+}
+drawDesk(); foot("desk");
+
+// ---- Roots ----
+$("#roots").innerHTML = DATA.roots.map((r) => `<button type="button" class="root" id="root-${r.id}" data-r="${r.id}" aria-pressed="false">
+  <span class="rhead"><span class="pill ${r.tone}">${r.tone === "crit" ? "Costs cases" : "Wastes work"}</span><span class="who"><i class="sw" style="background:var(--${r.owner})"></i>${MGR[r.owner]}</span></span>
+  <h3>${esc(r.title)}</h3>
+  <span class="why">${esc(r.why)}</span>
+  <span class="seen">${esc(r.seen)}</span></button>`).join("");
+document.querySelectorAll(".root").forEach((b) => b.addEventListener("click", () => {
+  const r = DATA.roots.find((x) => x.id === b.dataset.r);
+  document.querySelectorAll(".root").forEach((a) => a.setAttribute("aria-pressed", String(a.id === "root-" + r.id)));
+  if (r.graph !== "desk") highlight("work", r.highlight);
+  if (r.graph !== "work") { if (mgr !== "all") { mgr = "all"; drawDesk(); } highlight("desk", r.highlight); }
+  $("#" + (r.graph === "desk" ? "desk" : "work")).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}));
+</script>

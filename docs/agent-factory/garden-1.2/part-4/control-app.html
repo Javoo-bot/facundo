@@ -1,0 +1,863 @@
+<meta charset="utf-8">
+<title>Manager Control Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: an ink header band holds the shell (title, freshness, tabs, manager picker); below it one work area
+   per tab. Today: moves first, then the factory map, then the ranking beside your desk and what changed.
+   Same Garden 1.2 tokens as trouble-paths.html, light only by choice.
+   Signature move: the urgency ring around each manager's icon, one segment per red or amber fact; a fact
+   someone has handled turns its segment grey.
+   One colour language everywhere: red stuck, amber waiting on you, blue with Mike, green done, grey dropped. */
+:root {
+  color-scheme: light;
+  --bg: #FFFFFF; --panel: #F8FAFC; --inset: #F1F5F9; --shell: #0F1722; --shell-2: #1B2533; --shell-line: #2C3747; --shell-ink: #E6ECF3; --shell-muted: #9AA7B6;
+  --ink: #0F1722; --body: #3B4657; --muted: #5B6777;
+  --line: #E1E7EF; --line-strong: #C7D0DC; --edge: #A9B4C2;
+  --accent: #1F4FE0; --accent-wash: #EAF0FD;
+  --ok: #0E7F4B; --crit: #C0362C; --warn: #A86400; --mike: #2F6FD6; --drop: #98A3B1;
+  --ok-wash: #E8F4EE; --crit-wash: #FBECEA; --warn-wash: #FBF3E6; --mike-wash: #EAF1FC;
+  --harvey: #2D6A73; --donna: #8A5A1F; --louis: #7B3F8C; --jessica: #0F1722;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; }
+body { background: var(--panel); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+h1, h2, h3 { margin: 0; color: var(--ink); font-weight: 600; line-height: 1.25; text-wrap: balance; }
+h2 { font-size: 17px; } h3 { font-size: 14.5px; }
+p { margin: 0; }
+b { color: var(--ink); font-weight: 600; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); } .small { font-size: 13px; } .tiny { font-size: 12px; }
+button { font: inherit; color: inherit; touch-action: manipulation; }
+button:focus-visible, [tabindex]:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gutter { max-width: 1280px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); white-space: nowrap; user-select: none; transition: transform 120ms var(--ease-out), background 120ms; text-decoration: none; }
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+.btn.ghost { border-color: transparent; background: none; color: var(--muted); padding: 4px 8px; font-weight: 500; }
+.btn[disabled] { opacity: .5; cursor: default; }
+@media (hover: hover) and (pointer: fine) { .btn:hover { background: var(--inset); text-decoration: none; } .btn.primary:hover { background: #26303F; } .btn.ghost:hover { color: var(--ink); background: var(--inset); } }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Shell */
+.shell { background: var(--shell); color: var(--shell-ink); }
+.shell .gutter { padding-block: 16px 0; display: grid; gap: 14px; }
+.shell .gutter > *, .brand > div { min-width: 0; }
+.brand { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+.brand h1 { color: #FFFFFF; font-size: 21px; }
+.brand .sub { color: var(--shell-muted); font-size: 13px; }
+.fresh { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--shell-muted); }
+.fresh .led { width: 8px; height: 8px; border-radius: 50%; background: #34C38F; }
+.fresh.bad .led { background: #F0675C; } .fresh.bad b { color: #FFB4AE; }
+.bar { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; max-width: 100%; }
+nav.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--shell-muted); padding: 10px 14px 11px; cursor: pointer; white-space: nowrap; font-weight: 500; font-size: 14px; display: inline-flex; gap: 8px; align-items: center; user-select: none; }
+nav.tabs button .n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--shell-line); font-size: 11.5px; }
+nav.tabs button[aria-selected="true"] { color: #FFFFFF; border-bottom-color: #FFFFFF; }
+nav.tabs button[aria-selected="true"] .n { background: #FFFFFF; color: var(--shell); border-color: #FFFFFF; }
+@media (max-width: 620px) { .bar { flex-direction: column-reverse; align-items: stretch; } .picker, .pick-btn { width: 100%; min-width: 0; } }
+
+/* Manager picker */
+.picker { position: relative; padding-bottom: 10px; }
+.pick-btn { display: flex; align-items: center; gap: 10px; background: var(--shell-2); border: 1px solid var(--shell-line); border-radius: 10px; padding: 6px 12px 6px 6px; cursor: pointer; color: var(--shell-ink); min-width: 250px; user-select: none; transition: transform 140ms var(--ease-out); }
+.pick-btn:active { transform: scale(0.98); }
+.pick-btn .who { display: grid; text-align: left; line-height: 1.25; }
+.pick-btn .who b { color: #FFFFFF; font-size: 14.5px; }
+.pick-btn .who span { font-size: 12px; color: var(--shell-muted); }
+.pick-btn .chev { margin-left: auto; color: var(--shell-muted); }
+.menu { position: absolute; right: 0; top: calc(100% - 4px); z-index: 30; width: min(380px, calc(100vw - 32px)); background: var(--bg); color: var(--body); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 34, .18); padding: 6px; display: grid; gap: 2px; transform-origin: top right; transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out); }
+.menu[hidden] { display: grid !important; opacity: 0; transform: scale(0.97); pointer-events: none; visibility: hidden; }
+.menu .head { font-size: 12px; color: var(--muted); padding: 6px 10px 4px; }
+.opt { display: grid; grid-template-columns: 26px 48px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 0; background: none; text-align: left; width: 100%; }
+.opt[aria-selected="true"] { background: var(--accent-wash); }
+.opt .rank { font-size: 13px; font-weight: 700; color: var(--muted); text-align: center; }
+.opt .nm { display: grid; line-height: 1.3; min-width: 0; }
+.opt .nm span { font-size: 12.5px; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) { .opt:hover { background: var(--inset); } .opt[aria-selected="true"]:hover { background: var(--accent-wash); } nav.tabs button:hover { color: #FFFFFF; } }
+
+/* Avatar + urgency ring */
+.av { position: relative; flex: none; display: grid; place-items: center; }
+.av svg.ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.av .face { border-radius: 50%; display: grid; place-items: center; color: #FFFFFF; }
+.av .face svg { display: block; }
+
+/* Common */
+main { padding-block: 22px 56px; }
+.screen { display: grid; gap: 18px; }
+.lead { font-size: 17px; color: var(--ink); max-width: 80ch; text-wrap: pretty; }
+.card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; min-width: 0; align-content: start; }
+.card-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.card-h p { font-size: 13px; color: var(--muted); }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+.stackcol { display: grid; gap: 18px; min-width: 0; }
+@media (max-width: 1020px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; flex: none; }
+.pill.crit { background: var(--crit-wash); color: var(--crit); } .pill.warn { background: var(--warn-wash); color: var(--warn); }
+.pill.ok { background: var(--ok-wash); color: var(--ok); } .pill.grey { background: var(--inset); color: var(--muted); } .pill.todo, .pill.mike { background: var(--accent-wash); color: var(--accent); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.dot.crit { background: var(--crit); } .dot.warn { background: var(--warn); } .dot.ok { background: var(--ok); } .dot.grey { background: var(--drop); }
+.empty { padding: 16px; border: 1px dashed var(--line-strong); border-radius: 10px; color: var(--muted); font-size: 14px; }
+.handled { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: var(--inset); border-radius: 6px; padding: 2px 8px; }
+.handled b { color: var(--body); font-weight: 600; }
+.is-handled > .txt { color: var(--muted); }
+.explain { font-size: 13.5px; background: var(--accent-wash); border-radius: 8px; padding: 10px 12px; color: var(--ink); }
+.form { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.form textarea { font: inherit; font-size: 14px; width: 100%; min-height: 60px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px; resize: vertical; background: var(--bg); color: var(--ink); }
+.copybox { font-size: 12.5px; background: var(--inset); border-radius: 6px; padding: 8px; white-space: pre-wrap; user-select: all; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: #FFFFFF; font-size: 13.5px; padding: 8px 14px; border-radius: 8px; z-index: 50; transition: opacity 160ms var(--ease-out); }
+.toast[hidden] { display: block !important; opacity: 0; pointer-events: none; }
+
+/* Screen 1: moves */
+.moves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 960px) { .moves { grid-template-columns: minmax(0, 1fr); } }
+.move { background: var(--bg); border: 1px solid var(--line); border-top: 4px solid var(--mt); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.move .k { display: flex; align-items: center; gap: 10px; }
+.move .k .no { width: 26px; height: 26px; border-radius: 50%; background: var(--mt); color: #FFFFFF; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.move h3 { font-size: 15.5px; }
+.move.is-handled { border-top-color: var(--line-strong); }
+.move.is-handled .no { background: var(--drop); }
+
+/* Factory map */
+.map { overflow-x: auto; }
+.map table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 760px; }
+.map th { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; padding: 0 6px 10px; vertical-align: bottom; }
+.map th .sw { display: block; height: 4px; border-radius: 2px; margin: 6px auto 0; width: 70%; }
+.map th:first-child { text-align: left; }
+.map td { padding: 8px 6px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; }
+.map td:first-child { text-align: left; white-space: nowrap; }
+.map .lane { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); cursor: pointer; background: none; border: 0; padding: 0; }
+.map .cell { display: inline-grid; place-items: center; border-radius: 50%; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.map .cell.zero { color: var(--line-strong); font-weight: 500; }
+.map .neck { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--crit); }
+.map .arrow { color: var(--edge); font-size: 13px; }
+.map tfoot td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--line-strong); }
+
+/* Ranking */
+.rank-list { display: grid; gap: 12px; }
+.mcard { display: grid; grid-template-columns: 30px 72px minmax(0, 1fr); gap: 16px; align-items: start; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--mc); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.mcard .rk { font-size: 26px; font-weight: 700; color: var(--line-strong); text-align: center; font-variant-numeric: tabular-nums; padding-top: 18px; }
+.mcard.top .rk { color: var(--crit); }
+.mcard .body { display: grid; gap: 10px; min-width: 0; }
+.mcard .title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.mcard .title h2 { font-size: 18px; }
+.facts { display: grid; gap: 6px; }
+.fact { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 8px; font-size: 13.5px; align-items: baseline; }
+.fact .dot { transform: translateY(-1px); }
+.fact .txt { min-width: 0; }
+.state { display: grid; gap: 4px; }
+.state .track { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--inset); }
+.state .track i { display: block; height: 100%; }
+.state .lab { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); }
+.state .lab span { display: inline-flex; align-items: center; gap: 5px; }
+.state .lab i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+@media (max-width: 560px) { .mcard { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 14px; } .mcard .rk { display: none; } }
+
+/* Desk + activity */
+.dlist { display: grid; gap: 6px; }
+.drow { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.drow .t { font-size: 13px; min-width: 0; display: grid; gap: 4px; }
+.drow .t span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drow .age { height: 5px; border-radius: 3px; background: var(--inset); position: relative; overflow: hidden; }
+.drow .age i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
+.drow .age b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); left: 21.4%; }
+.feed { display: grid; gap: 0; max-height: 520px; overflow: auto; overscroll-behavior: contain; }
+.ev { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.ev:first-child { border-top: 0; }
+.ev .ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #FFFFFF; }
+.ev .meta { font-size: 12px; color: var(--muted); }
+.ev.human .ic { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--ink); }
+.ev .note { font-size: 13px; color: var(--ink); background: var(--panel); border-radius: 6px; padding: 4px 8px; margin-top: 4px; overflow-wrap: anywhere; }
+
+/* Screen 2 */
+.who-strip { display: flex; align-items: center; gap: 14px; }
+.who-strip .t { display: grid; gap: 2px; }
+.sankey { display: grid; grid-template-columns: 210px minmax(0, 1fr); align-items: start; }
+.sankey svg { display: block; width: 100%; }
+.paths { display: grid; }
+.path { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
+.path:last-child { border-bottom: 0; }
+.path .c { font-size: 18px; font-weight: 700; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12.5px; }
+.steps .st { padding: 2px 8px; border-radius: 6px; background: var(--inset); color: var(--body); white-space: nowrap; }
+.steps .st.crit { background: var(--crit-wash); color: var(--crit); } .steps .st.warn { background: var(--warn-wash); color: var(--warn); } .steps .st.ok { background: var(--ok-wash); color: var(--ok); }
+.steps .ar { color: var(--edge); }
+@media (max-width: 620px) { .sankey { grid-template-columns: 90px minmax(0, 1fr); } }
+.sigs { display: grid; gap: 14px; }
+.sig { display: grid; gap: 6px; }
+.sig .h { display: flex; align-items: center; gap: 8px; color: var(--tc); }
+.sig .h b { font-size: 14px; }
+.sig .h .v { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--tc); }
+.sig .tr { height: 8px; border-radius: 4px; background: var(--inset); overflow: hidden; }
+.sig .tr i { display: block; height: 100%; background: var(--tc); border-radius: 4px; }
+.sig .tr.none { background: repeating-linear-gradient(-45deg, var(--inset) 0 6px, var(--bg) 6px 12px); border: 1px dashed var(--line-strong); }
+.sig p { font-size: 12.5px; }
+.items { display: grid; gap: 10px; }
+.item { border: 1px solid var(--line); border-left: 4px solid var(--rc); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; background: var(--bg); min-width: 0; }
+.item.is-handled { border-left-color: var(--line-strong); }
+.item .txt { font-size: 14px; }
+.item .txt h3 { margin-bottom: 2px; }
+.fixes { display: grid; gap: 8px; }
+.fix { display: grid; grid-template-columns: 54px minmax(0, 1fr) 180px; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
+.fix .id { font-weight: 700; font-variant-numeric: tabular-nums; }
+.fix .t { font-size: 13.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.life { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: start; position: relative; }
+.life::before { content: ""; position: absolute; top: 8px; left: 12%; right: 12%; height: 2px; background: var(--line); }
+.life span { display: grid; justify-items: center; gap: 2px; font-size: 10.5px; color: var(--muted); position: relative; text-align: center; line-height: 1.15; }
+.life i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--bg); }
+.life i.y { background: var(--ok); border-color: var(--ok); } .life i.x { background: var(--crit); border-color: var(--crit); }
+@media (max-width: 620px) { .fix { grid-template-columns: 44px minmax(0, 1fr); } .fix .life { grid-column: 1 / -1; } }
+
+/* Screen 3 */
+.stepper { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; position: relative; }
+.stepper::before { content: ""; position: absolute; top: 19px; left: 16%; right: 16%; height: 2px; background: var(--line-strong); }
+.sstep { display: grid; gap: 12px; align-content: start; position: relative; }
+.sstep .knob { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; justify-self: center; background: var(--bg); border: 2px solid var(--line-strong); color: var(--muted); }
+.sstep .knob.on { background: var(--warn); border-color: var(--warn); color: #FFFFFF; }
+.sstep .knob.done { background: var(--ok); border-color: var(--ok); color: #FFFFFF; }
+.sstep .knob.lock { border-style: dashed; }
+.sstep .card { min-height: 100%; }
+@media (max-width: 960px) { .stepper { grid-template-columns: minmax(0, 1fr); } .stepper::before { display: none; } .sstep .knob { justify-self: start; } }
+.diff { display: grid; gap: 6px; font-size: 13.5px; }
+.diff .del { background: var(--crit-wash); color: var(--crit); text-decoration: line-through; padding: 6px 10px; border-radius: 6px; }
+.diff .add { background: var(--ok-wash); color: var(--ink); padding: 6px 10px; border-radius: 6px; border-left: 3px solid var(--ok); }
+.diff .r { font-size: 12px; color: var(--muted); padding-left: 10px; }
+.rp { display: grid; gap: 10px; }
+.rrow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; }
+.stack { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--inset); }
+.stack i { display: block; height: 100%; }
+.stack.ghost { background: repeating-linear-gradient(-45deg, var(--inset) 0 6px, var(--bg) 6px 12px); border: 1px dashed var(--line-strong); align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.unlock { display: flex; align-items: center; gap: 14px; }
+.matrix { overflow-x: auto; }
+.matrix table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 640px; }
+.matrix th { font-size: 12px; font-weight: 500; color: var(--muted); text-align: center; padding: 6px 8px; border-bottom: 1px solid var(--line-strong); }
+.matrix th:first-child, .matrix th:last-child { text-align: left; }
+.matrix td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.matrix td.c { text-align: center; }
+.mk { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-weight: 700; font-size: 13px; }
+.mk.y { background: var(--ok-wash); color: var(--ok); } .mk.x { background: var(--crit-wash); color: var(--crit); } .mk.h { background: var(--warn-wash); color: var(--warn); } .mk.u { background: var(--inset); color: var(--muted); }
+/* Its rules: a small version of the rule map's wheel, one manager at a time */
+.rules-wrap { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: center; }
+@media (max-width: 760px) { .rules-wrap { grid-template-columns: minmax(0, 1fr); } .wheel { max-width: 340px; margin: 0 auto; } }
+.wheel svg { display: block; width: 100%; height: auto; }
+.wheel .sp, .wheel .dt { transition: opacity 140ms var(--ease-out); }
+.wheel.focus .sp:not(.on), .wheel.focus .dt:not(.on) { opacity: .15; }
+.rlist { display: grid; gap: 2px; max-width: 760px; }
+.rsum { font-size: 14px; color: var(--ink); margin: 0 0 6px 8px; }
+.rrule { display: grid; grid-template-columns: 22px minmax(0, 1fr) 120px; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 8px; border: 0; background: none; text-align: left; cursor: pointer; width: 100%; }
+.rrule[aria-pressed="true"] { background: var(--accent-wash); }
+@media (hover: hover) and (pointer: fine) { .rrule:hover { background: var(--inset); } .rrule[aria-pressed="true"]:hover { background: var(--accent-wash); } }
+.rrule .no { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #FFFFFF; }
+.rrule .tx { font-size: 13.5px; color: var(--ink); min-width: 0; }
+.rrule .tx small { display: block; font-size: 12px; color: var(--muted); }
+.rrule .mini { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--inset); }
+.rrule .mini i { display: block; height: 100%; }
+@media (max-width: 560px) { .rrule { grid-template-columns: 22px minmax(0, 1fr); } .rrule .mini { grid-column: 2; } }
+/* Trends from the daily snapshots */
+.trends { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--muted); }
+.trends:empty { display: none; }
+.tm { display: inline-flex; align-items: center; gap: 6px; }
+.spark { width: 56px; height: 16px; flex: none; }
+.dl { font-size: 11.5px; font-weight: 600; }
+.dl.up { color: var(--crit); } .dl.down { color: var(--ok); } .dl.same { color: var(--muted); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="shell">
+  <div class="gutter">
+    <div class="brand">
+      <div>
+        <h1>Manager Control Room</h1>
+        <p class="sub" id="sub"></p>
+      </div>
+      <span class="fresh" id="fresh"><i class="led"></i><span></span></span>
+    </div>
+    <div class="bar">
+      <nav class="tabs" role="tablist" aria-label="Screens">
+        <button role="tab" id="tab-today" aria-controls="scr-today" aria-selected="true"><span class="n">1</span>Today</button>
+        <button role="tab" id="tab-struggle" aria-controls="scr-struggle" aria-selected="false"><span class="n">2</span>Where it struggles</button>
+        <button role="tab" id="tab-fix" aria-controls="scr-fix" aria-selected="false"><span class="n">3</span>Fix it and watch</button>
+      </nav>
+      <div class="picker">
+        <button class="pick-btn" id="pick" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="menu"></button>
+        <div class="menu" id="menu" role="listbox" aria-label="Managers, most urgent first" hidden></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="gutter">
+  <section class="screen" id="scr-today" role="tabpanel" aria-labelledby="tab-today">
+    <div class="card-h"><h2>Today's moves</h2><p>The few things that unblock the most. Mark one when you start or finish it, and the team sees it.</p></div>
+    <div class="moves" id="moves"></div>
+
+    <div class="card">
+      <div class="card-h"><h2>Where every card is now</h2><p>From left to right is the way a problem should travel. The red ring marks where most work is stuck.</p></div>
+      <div class="map" id="map"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="stackcol">
+        <div class="card-h"><h2>Managers by urgency</h2><p>A red fact weighs three amber ones. Each is read against its own past.<span id="trend-note"></span></p></div>
+        <div class="rank-list" id="ranking"></div>
+      </div>
+      <div class="stackcol">
+        <div class="card" id="desk">
+          <div class="card-h"><h2>Your desk</h2><span class="pill" id="desk-pill"></span></div>
+          <p class="small" id="desk-sum"></p>
+          <div class="dlist" id="desk-list"></div>
+          <p class="tiny muted">The black tick on each bar is 3 days. Your time never counts against a manager.</p>
+        </div>
+        <div class="card">
+          <div class="card-h"><h2>What changed</h2><p>From the data and from the team</p></div>
+          <div class="feed" id="feed"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-struggle" role="tabpanel" aria-labelledby="tab-struggle" hidden>
+    <div class="who-strip" id="s2-who"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-h"><h2>Where its <span id="s2-total"></span> cards went</h2><p>Each band is the path a group of cards took. Thicker is more cards.</p></div>
+        <div class="sankey" id="sankey"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>What it isn't telling you</h2></div>
+        <div class="sigs" id="sigs"></div>
+      </div>
+    </div>
+    <div class="card" id="rules-card">
+      <div class="card-h"><h2>Its rules</h2><p>Each dot is a situation a rule covers. Red means nobody has settled how to handle it yet.</p></div>
+      <div class="rules-wrap"><div class="wheel" id="wheel"></div><div class="rlist" id="rlist"></div></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Handled</span><span><i style="background:var(--warn)"></i>Being built</span><span><i style="background:var(--drop)"></i>Planned</span><span><i style="background:var(--crit)"></i>Open</span><span style="margin-left:auto"><a href="../rule-map.html">See every rule on the rule map</a></span></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>What needs doing</h2><p>Mark what you take on. "Explain" asks Claude for three plain sentences from these numbers.</p></div>
+      <div class="items" id="s2-facts"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Why it happens</h2></div>
+      <div class="items" id="roots"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Its fixes</h2><p>Newest first. Each fix should pass four steps: opened, tests prove it, merged, stayed quiet.</p></div>
+      <div class="fixes" id="fixes"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-fix" role="tabpanel" aria-labelledby="tab-fix" hidden>
+    <p class="lead" id="s3-lead"></p>
+    <div class="stepper">
+      <div class="sstep"><span class="knob" id="k1">1</span><div class="card" id="step1"></div></div>
+      <div class="sstep"><span class="knob lock">2</span><div class="card" id="step2"></div></div>
+      <div class="sstep"><span class="knob lock">3</span><div class="card" id="step3"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Verification checks: today's pieces</h2><span class="pill todo">To discuss</span></div>
+      <p class="small">Each row is one of Mike's fixes for this manager's agents, re-run with the main fix removed. These are the pieces that exist today, put together so we can decide the verification design.</p>
+      <div class="matrix" id="matrix"></div>
+      <div class="legend"><span><span class="mk y">✓</span>Yes</span><span><span class="mk x">✗</span>No</span><span><span class="mk h">~</span>Yes, for the wrong reason</span><span><span class="mk u">–</span>Nothing to check</span></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+const DATA = {"builtAt":"2026-10-27T07:42:08.867Z","window":{"from":"2026-10-13T16:55:00.12233+00:00","to":"2026-10-27T07:42:08.867Z"},"silent":{"hours":85,"since":"2026-10-23T18:50:00.176945+00:00"},"order":["donna","harvey","louis"],"managers":{"donna":{"urgency":10,"warnCount":1,"name":"Donna","role":"Order-loop manager","reads":"Concierge, Babel","nums":{"cards":100,"worked":13,"merged":1,"back":0,"never":83,"prs":8},"closed":4,"state":{"never":83,"queued":0,"review":6,"decision":5,"fixed":4,"dropped":2},"facts":[["crit","83 cards never worked, the oldest for 11 days. 69 of them are one problem, split by the client's email subject.","donna:never-worked"],["crit","3 of 4 checked fixes pass their tests with the main fix removed (audit of 2026-10-26).","donna:false-pass"],["crit","Retries a full AI pool: 30 cases retried 5 or more times in a row; the backup model was used 0 times.","donna:retry-full-pool"],["warn","5 of 8 runs that didn't end in a fix found it was working as designed.","donna:designed"]],"critCount":3,"roots":[["crit","A full AI pool is retried, not avoided","324 model calls failed, 286 of them \"no room left\" in the free pool. 30 cases retried 5+ times in a row (longest 9). Backup model used 0 times."],["warn","Working as designed is filed as a fault","425 of 1554 rule gaps are holds the rules require (money, terms, a person decides)."],["crit","One problem is filed as many cards","70 cards share one reason; 69 of them were never worked."]],"signals":[["Saw it, didn't act","crit","83 cards","Never picked up. The oldest has waited 11 days."],["Said \"fixed\" without proof","crit","3 of 4","Tests stay green with the main fix removed: #11, #12, #37 (audit of 2026-10-26)."],["Keeps trying what fails","crit","30 cases","Retried the full AI pool 5 or more times in a row."],["Held or gave up without a reason","todo","Not recorded","Needs the manager log from Part 2: dropped_as_designed and to_jessica, each with a reason."]],"cases":[["#39","Concierge: Handed to a person (planner:intent:delivery_problem)",["grey","Waiting for your review"],{"url":"https://github.com/your-org/agent-factory/pull/39","proven":null,"merged":false,"quiet":null,"backAt":null}],["#38","Concierge: The assistant failed — nothing was sent: Notes only, no fix. The 73 existing tests pass.",["grey","No fix"],{"url":"https://github.com/your-org/agent-factory/pull/38","proven":null,"merged":false,"quiet":null,"backAt":null}],["#37","Concierge: We can't tell which florist this is from: Fails only because a new file is missing. All 6 pass with the wiring line removed.",["crit","False pass"],{"url":"https://github.com/your-org/agent-factory/pull/37","proven":false,"merged":false,"quiet":null,"backAt":null}],["#14","Concierge: We hold nothing about this order to answer from",["grey","Waiting for your review"],{"url":"https://github.com/your-org/agent-factory/pull/14","proven":null,"merged":false,"quiet":null,"backAt":null}],["#12","Concierge: Asked about money, contracts, or a person — never answered automatically: Fails only on two missing labels. The main change has no test.",["crit","False pass"],{"url":"https://github.com/your-org/agent-factory/pull/12","proven":false,"merged":false,"quiet":null,"backAt":null}],["#11","Concierge: The assistant wasn't confident enough: The test named as proof turns the Planner on by hand, so it can't see the switch bug.",["crit","False pass"],{"url":"https://github.com/your-org/agent-factory/pull/11","proven":false,"merged":false,"quiet":null,"backAt":null}],["#10","Concierge: The AI service was unreachable — nothing was sent: 4 tests fail on the old code; 4 guard tests fail when their rule is broken.",["ok","Proves the fix"],{"url":"https://github.com/your-org/agent-factory/pull/10","proven":true,"merged":false,"quiet":null,"backAt":null}],["#6","Concierge: This shop is excluded, or is not the kind of shop this assistant serves",["ok","Merged, quiet so far"],{"url":"https://github.com/your-org/agent-factory/pull/6","proven":null,"merged":true,"quiet":true,"backAt":null}]],"lead":"Donna's biggest problem today: 83 cards never worked, the oldest for 11 days. 69 of them are one problem, split by the client's email subject.","flow":[["Opened",100,"grey"],["Never worked",83,"crit"],["Needed a person → Waiting for your decision",7,"warn"],["Draft PR → Waiting for your review",4,""],["Dropped",2,"grey"],["Closed",2,"ok"],["Draft PR → Closed",1,"ok"],["Other paths",1,"grey"]]},"harvey":{"urgency":9,"warnCount":3,"name":"Harvey","role":"Supply manager","reads":"Scout, Bloom, Sherlock, Cupid, Quill","nums":{"cards":7,"worked":5,"merged":4,"back":0,"never":0,"prs":5},"closed":1,"state":{"never":0,"queued":0,"review":1,"decision":0,"fixed":4,"dropped":2},"facts":[["crit","1 of 1 checked fix passes its tests with the main fix removed (audit of 2026-10-26).","harvey:false-pass"],["crit","\"No florist nearby\": 367 cases failed two or more recovery steps. Cold offers worked 0 of 391 times.","harvey:ladder"],["warn","1 card gave up twice and went back to Mike with the same brief.","harvey:gave-up-twice"],["warn","3 of 4 runs that didn't end in a fix found it was working as designed.","harvey:designed"],["warn","3 merged cards never closed.","harvey:unclosed"]],"critCount":2,"roots":[["crit","No florist nearby: a ladder that never holds","Reoffer wider worked 7 of 429 times, cold offer 0 of 391, swap florist 6 of 125. 187 of the failed cases ended waiting for the team."]],"signals":[["Saw it, didn't act","ok","0 cards","Every card was picked up."],["Said \"fixed\" without proof","crit","1 of 1","Tests stay green with the main fix removed: #13 (audit of 2026-10-26)."],["Keeps trying what fails","crit","367 cases","Tried two or more recovery steps that keep failing. 1 card gave up twice with the same brief."],["Held or gave up without a reason","todo","Not recorded","Needs the manager log from Part 2: dropped_as_designed and to_jessica, each with a reason."]],"cases":[["#13","Scout: No florist left in range — escalated: The AI-name fix is tested; the cost-recording step is not.",["crit","False pass"],{"url":"https://github.com/your-org/agent-factory/pull/13","proven":false,"merged":false,"quiet":null,"backAt":null}],["#7","Cupid: reply subjects come out as &quot;Re: Re: …&quot;",["ok","Merged, quiet so far"],{"url":"https://github.com/your-org/agent-factory/pull/7","proven":null,"merged":true,"quiet":true,"backAt":null}],["#5","Sherlock: contact-found counts shops Sherlock never read; give it real daily cases",["ok","Merged, quiet so far"],{"url":"https://github.com/your-org/agent-factory/pull/5","proven":null,"merged":true,"quiet":true,"backAt":null}],["#4","Cupid: Asked about money, contracts, or a person — never answered automatically",["ok","Merged, quiet so far"],{"url":"https://github.com/your-org/agent-factory/pull/4","proven":null,"merged":true,"quiet":true,"backAt":null}],["#3","Cupid: We can't tell which florist this is from",["ok","Merged, quiet so far"],{"url":"https://github.com/your-org/agent-factory/pull/3","proven":null,"merged":true,"quiet":true,"backAt":null}]],"lead":"Harvey's biggest problem today: 1 of 1 checked fix passes its tests with the main fix removed (audit of 2026-10-26).","flow":[["Opened",7,"grey"],["Dropped",2,"grey"],["Needed a person → Waiting for your decision",1,"warn"],["Crashed → Draft PR → Waiting for your review",1,"crit"],["Gave up → Gave up → Draft PR → Waiting for your review",1,"crit"],["Draft PR → Closed",1,"ok"],["Draft PR → Waiting for your review",1,""]]},"louis":{"urgency":6,"warnCount":3,"name":"Louis","role":"Proof manager","reads":"Hawkeye","nums":{"cards":5,"worked":4,"merged":1,"back":1,"never":1,"prs":2},"closed":1,"state":{"never":1,"queued":0,"review":1,"decision":2,"fixed":1,"dropped":0},"facts":[["crit","1 merged fix came back: #2.","louis:came-back"],["warn","1 card never worked, the oldest for 11 days.","louis:never-worked"],["warn","1 card gave up twice and went back to Mike with the same brief.","louis:gave-up-twice"],["warn","3 of 4 runs that didn't end in a fix found it was working as designed.","louis:designed"]],"critCount":1,"roots":[["crit","A fix that came back","#2, \"Hawkeye: The photo check could not decide, so a person has to look at the photo\", reopened after it merged."]],"signals":[["Saw it, didn't act","warn","1 card","Never picked up. The oldest has waited 11 days."],["Said \"fixed\" without proof","crit","1 of 1","Came back after merge: #2."],["Keeps trying what fails","crit","1 card","1 card gave up twice with the same brief."],["Held or gave up without a reason","todo","Not recorded","Needs the manager log from Part 2: dropped_as_designed and to_jessica, each with a reason."]],"cases":[["#9","Hawkeye: One of the photo checkers failed with an error instead of voting",["grey","Waiting for your review"],{"url":"https://github.com/your-org/agent-factory/pull/9","proven":null,"merged":false,"quiet":null,"backAt":null}],["#2","Hawkeye: The photo check could not decide, so a person has to look at the photo",["crit","Came back"],{"url":"https://github.com/your-org/agent-factory/pull/2","proven":null,"merged":true,"quiet":false,"backAt":"2026-10-14T08:00:45.691159+00:00"}]],"lead":"Louis's biggest problem today: 1 merged fix came back: #2.","flow":[["Opened",5,"grey"],["Draft PR → Closed",1,"ok"],["Draft PR → Waiting for your review",1,""],["Needed a person → Waiting for your decision",1,"warn"],["Gave up → Gave up → Needed a person → Waiting for your decision",1,"crit"],["Never worked",1,"crit"]]}},"moves":[{"id":"desk:review","tone":"crit","title":"Review 8 waiting fixes","detail":"The oldest has waited 11 days. Nothing reaches the garden until you merge.","action":"desk"},{"id":"garden:silent","tone":"crit","title":"Get the garden running again","detail":"It has logged nothing for 85 hours, so nothing new can be measured.","action":"copy","copy":"The garden simulation (branch garden, the side-project database) has written no agent_events since 2026-10-23T18:50:00.176945+00:00. Find why it stopped and restart it. Read docs/agent-factory/garden.md and docs/agent-factory/garden-deploy.md first; deploy only by pushing to origin/garden."},{"id":"donna:never-worked","tone":"crit","title":"Donna: 83 cards never worked, the oldest for 11 days. 69 of them are one problem, split by the client's email subject.","detail":"","action":"manager","manager":"donna"}],"activity":[{"at":"2026-10-27T07:09:59.74+00:00","kind":"decision","manager":"donna","text":"Mike asked for your decision on: Concierge: Handed to a person (planner:the client wrote about their order: Re: Your Facundo order has been delivered)"},{"at":"2026-10-26T13:11:27.584+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #39: Concierge: Handed to a person (planner:intent:delivery_problem)","url":"https://github.com/your-org/agent-factory/pull/39"},{"at":"2026-10-26T07:08:52.763+00:00","kind":"decision","manager":"donna","text":"Mike asked for your decision on: Concierge: Handed to a person (planner:intent:change_request)"},{"at":"2026-10-25T13:08:37.147+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #38: Concierge: The assistant failed — nothing was sent","url":"https://github.com/your-org/agent-factory/pull/38"},{"at":"2026-10-25T07:08:30.561+00:00","kind":"decision","manager":"donna","text":"Mike asked for your decision on: Concierge: Hit the limit on replies without a human"},{"at":"2026-10-24T13:12:45.465+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #37: Concierge: We can't tell which florist this is from","url":"https://github.com/your-org/agent-factory/pull/37"},{"at":"2026-10-24T07:07:05.881+00:00","kind":"decision","manager":"donna","text":"Mike asked for your decision on: Concierge: This shop has a real order here but hasn't finished joining yet"},{"at":"2026-10-23T13:06:17.816+00:00","kind":"decision","manager":"louis","text":"Mike asked for your decision on: Hawkeye: The photo check could not decide, so a person has to look at the photo"},{"at":"2026-10-23T07:09:49.924+00:00","kind":"decision","manager":"donna","text":"Mike asked for your decision on: Concierge: The assistant asked for a human"},{"at":"2026-10-22T07:04:50.281+00:00","kind":"gave-up","manager":"louis","text":"Mike gave up on: Hawkeye: The photo check could not decide, so a person has to look at the photo"},{"at":"2026-10-21T07:04:42.983+00:00","kind":"gave-up","manager":"louis","text":"Mike gave up on: Hawkeye: The photo check could not decide, so a person has to look at the photo"},{"at":"2026-10-20T13:07:38.08+00:00","kind":"decision","manager":"louis","text":"Mike asked for your decision on: Hawkeye: Garden test failed: Florist uploads a screenshot instead of the bouquet"},{"at":"2026-10-20T07:08:28.148+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #14: Concierge: We hold nothing about this order to answer from","url":"https://github.com/your-org/agent-factory/pull/14"},{"at":"2026-10-19T07:13:15.225+00:00","kind":"pr","manager":"harvey","text":"Mike opened fix #13: Scout: No florist left in range — escalated","url":"https://github.com/your-org/agent-factory/pull/13"},{"at":"2026-10-18T13:15:58.34+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #12: Concierge: Asked about money, contracts, or a person — never answered automatically","url":"https://github.com/your-org/agent-factory/pull/12"},{"at":"2026-10-18T07:06:56.615+00:00","kind":"gave-up","manager":"harvey","text":"Mike gave up on: Scout: No florist left in range — escalated"},{"at":"2026-10-17T13:08:21.579+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #11: Concierge: The assistant wasn't confident enough","url":"https://github.com/your-org/agent-factory/pull/11"},{"at":"2026-10-17T07:07:55.261+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #10: Concierge: The AI service was unreachable — nothing was sent","url":"https://github.com/your-org/agent-factory/pull/10"},{"at":"2026-10-16T13:07:22.02+00:00","kind":"gave-up","manager":"harvey","text":"Mike gave up on: Scout: No florist left in range — escalated"},{"at":"2026-10-16T07:12:26.157+00:00","kind":"pr","manager":"louis","text":"Mike opened fix #9: Hawkeye: One of the photo checkers failed with an error instead of voting","url":"https://github.com/your-org/agent-factory/pull/9"},{"at":"2026-10-14T14:44:33.000Z","kind":"merged","manager":"harvey","text":"Fix #7 merged","url":"https://github.com/your-org/agent-factory/pull/7"},{"at":"2026-10-14T14:31:44.812+00:00","kind":"pr","manager":"harvey","text":"Mike opened fix #7: Cupid: reply subjects come out as &quot;Re: Re: …&quot;","url":"https://github.com/your-org/agent-factory/pull/7"},{"at":"2026-10-14T14:26:18.000Z","kind":"merged","manager":"donna","text":"Fix #6 merged","url":"https://github.com/your-org/agent-factory/pull/6"},{"at":"2026-10-14T14:25:16.000Z","kind":"merged","manager":"harvey","text":"Fix #3 merged","url":"https://github.com/your-org/agent-factory/pull/3"},{"at":"2026-10-14T13:10:54.421+00:00","kind":"pr","manager":"donna","text":"Mike opened fix #6: Concierge: This shop is excluded, or is not the kind of shop this assistant serves","url":"https://github.com/your-org/agent-factory/pull/6"}],"receipts":[],"snapshot":{"date":"2026-10-27","managers":{"donna":{"cards":100,"never":83,"review":6,"decision":5,"fixed":4,"back":0,"red":3,"urgency":10,"falsePass":3},"harvey":{"cards":7,"never":0,"review":1,"decision":0,"fixed":4,"back":0,"red":2,"urgency":9,"falsePass":1},"louis":{"cards":5,"never":1,"review":1,"decision":2,"fixed":1,"back":1,"red":1,"urgency":6,"falsePass":0}},"desk":{"waiting":8,"decisions":7,"oldestDays":11}},"rules":{"harvey":[{"id":"area-has-florists","text":"Every area we deliver to has real florists to ask.","members":[{"id":"match-none","status":"handled","trigger":"No florist passes the hard filters — most often nobody within the distance cap."},{"id":"match-coverage-gap-unseen","status":"handled","trigger":"An order lands somewhere we have no florists, but automatic ingest can never fire for it — because the order was filtered out by the active-tag gate (so it neve"},{"id":"match-ingest-noise","status":"handled","trigger":"Places that are not florists at all become match candidates — lottery kiosks, tobacconists, a royal palace garden, streets literally named `Carrer de les Flors`"},{"id":"match-ingest-found-nothing","status":"handled","trigger":"An ingest queued for an uncovered delivery area completes, but turns up no florist we can use — the area really is empty, not merely unscraped."},{"id":"match-thin","status":"in-progress","trigger":"Only one or two weak candidates pass."},{"id":"match-capacity","status":"handled","trigger":"Every qualified florist is already at capacity for that delivery date."},{"id":"reachout-exhausted","status":"handled","trigger":"Every candidate declines or times out — while the city still holds shops nobody asked. A match writes only the top `match_top_n` (3) candidates, so the pre-refi"},{"id":"reachout-cold-offer","status":"handled","trigger":"Nobody in the network can take this order — but a discovered shop nearby could, and has never heard of us."},{"id":"reachout-refill-cold-exposure","status":"open","trigger":"Refilling works down a city, and after the onboarded shops are spent every further wave goes to a shop that has never onboarded — so one unanswered order can co"}],"handled":7,"progress":1,"planned":0,"open":1},{"id":"only-ready-shops","text":"Only real, ready, unique shops get offers.","members":[{"id":"match-duplicate-shop","status":"handled","trigger":"The same physical storefront exists as more than one florist row and gets offered twice on one order. Ingest upserts on `(city_id, place_id)`, so a shop inside "},{"id":"recruit-duplicate-shop","status":"handled","trigger":"The same physical shop was ingested twice under two listings, so it enrols twice and gets everything twice."},{"id":"match-untiered-florist","status":"handled","trigger":"A florist has no `trust_tier`, so `lib/payout.ts` has no accept/delivery split to apply and cannot pay them for a delivered order."},{"id":"match-unready-florist","status":"handled","trigger":"A florist marked 'production' can't actually receive the order — no delivery radius or no trust tier set (so we can't locate or pay them)."},{"id":"match-stale-florist","status":"open","trigger":"A matched florist has quietly closed or is away."},{"id":"match-roster-truncated","status":"handled","trigger":"CX's manual escape hatches from the two branches above ('Add florist', and the staff florist directory they pick from) couldn't SEE most of the roster. PostgRES"},{"id":"reachout-cold-accept-unvetted","status":"handled","trigger":"A shop nobody has vetted accepts a real order, and we owe them 70% on a company card before they buy a stem."},{"id":"x-provisional-shop-skips-cold-gate","status":"open","trigger":"A shop that joined by accepting a cold offer is treated as ONBOARDED on every later order, so the cold-offer gate — lead-time floor, payout ceiling, contactabil"}],"handled":6,"progress":0,"planned":0,"open":2},{"id":"offer-reaches-shop","text":"Every offer reaches the shop, in a language it reads.","members":[{"id":"reachout-never-received","status":"handled","trigger":"The offer is still LIVE and the florist says it never arrived — the mail went to spam, the phone number is stale, the push never landed. Re-send deliberately re"},{"id":"reachout-comms-fail","status":"handled","trigger":"The push or email itself fails (bounced email, dead push subscription)."},{"id":"reachout-wrong-recipient","status":"handled","trigger":"The address on the florist row is well-formed and deliverable, but it is not that SHOP's — it is the head office of a network, franchise or chain whose site hos"},{"id":"reachout-candidate-unreachable","status":"handled","trigger":"Every channel is closed for the LEADING candidate, so the offer reaches nobody: the email leg is suppressed (the address is a network's, shared, or bounced — se"},{"id":"reachout-no-email-ever-extracted","status":"handled","trigger":"The candidate florist has NO email at all — not a wrong one, not an opted-out one. Ingest crawled the site and enrichment never produced an address, so `florist"},{"id":"reachout-no-sms-phone","status":"handled","trigger":"The candidate florist has no parseable phone number — phone_mobile, phone_web and phone_maps are all missing, or none normalizes to E.164 for the country of the"},{"id":"reachout-florist-unsubscribed","status":"handled","trigger":"The candidate florist has unsubscribed from order-offer emails (permanently, or snoozed for 30 days) via the self-service link in the offer email footer."},{"id":"reachout-wrong-language","status":"handled","trigger":"The offer goes out in English to a florist whose country implies another language, because `florists.locale` is null and nothing else decided it. Hit twice for "},{"id":"reachout-order-content-untranslated","status":"handled","trigger":"The offer page's CHROME is localised into six languages, but everything that comes from Shopify — the product name, the bouquet recipe, the components and add-o"},{"id":"reachout-reply-bounces","status":"handled","trigger":"A florist replies to an offer email and the reply bounces. The offer carried no Reply-To, so replies went to the From address on fc.example.net, which has NO MX"},{"id":"reachout-sms-account-down","status":"handled","trigger":"The SMS provider account itself stops working, so EVERY text fails, not one number. Real: between 2026-08-07 and 2026-09-11 the Telnyx account was deactivated o"},{"id":"reachout-sms-cost","status":"handled","trigger":"Every offer SMS bills as THREE segments. Measured on the current copy: en 372, es 385, fr 402, de 384, it 395 characters, against a 160-char first segment and 1"},{"id":"accept-confirm-unreachable","status":"handled","trigger":"The florist takes the order but we can't confirm it back to them — their stored address is a network head office / shared / hard-bounced, they opted out of orde"}],"handled":13,"progress":0,"planned":0,"open":0},{"id":"recruiting-honest-once","text":"Recruiting messages reach the right shops, once, and say only true things.","members":[{"id":"recruit-no-persona","status":"handled","trigger":"A market has no active outreach persona, so a follow-up signed by a named person has nobody to sign it."},{"id":"recruit-scanner-click","status":"handled","trigger":"A corporate link scanner (Outlook Safe Links, Proofpoint) opens every URL in the email, so a machine is counted as an interested human."},{"id":"recruit-bounce","status":"handled","trigger":"The address hard-bounces, or the florist marks it as spam."},{"id":"recruit-overlapping-ticks","status":"handled","trigger":"Two ticks overlap, or a click lands between a tick's read and its write."},{"id":"recruit-domain-burn","status":"handled","trigger":"A bug enrols thousands of discovered florists at once and the funnel tries to mail all of them in one tick."},{"id":"recruit-optout-midflight","status":"handled","trigger":"A florist opts out (or is excluded, or joins) partway through a sequence."},{"id":"x-persona-is-not-real","status":"handled","trigger":"Every outreach follow-up is signed by a named person who does not exist — one invented persona per market. A prospect asks to meet her, calls asking for her by "},{"id":"x-sequence-preempt","status":"handled","trigger":"A real order lands near a florist who is midway through the recruiting funnel, so they could get 'we have an order for you' and 'join our network' in the same h"},{"id":"x-ai-reply-wrong","status":"in-progress","trigger":"The outreach assistant answers a florist unattended and says something false, off-policy, or simply wrong — in a language nobody on the team reads."}],"handled":8,"progress":1,"planned":0,"open":0}],"donna":[{"id":"order-in-clean","text":"Every order we take in is complete, real and ours to work.","members":[{"id":"created-not-covered","status":"handled","trigger":"Order is for a city / country we don't operate in yet."},{"id":"webhook-hmac","status":"handled","trigger":"Signature is missing or invalid (spoofed / misconfigured secret)."},{"id":"webhook-replay","status":"handled","trigger":"Shopify redelivers the same webhook, or delivers out of order."},{"id":"webhook-missing","status":"handled","trigger":"The webhook is never delivered at all (Shopify drop, our outage during the window)."},{"id":"parse-malformed","status":"open","trigger":"Required fields missing or malformed (no delivery date, empty address)."},{"id":"parse-enrichment-wipe","status":"handled","trigger":"A later re-parse of the REST payload overwrites columns that only the GraphQL variant lookup can fill (line-item photo, recipe, barcode, components/add-ons) — p"},{"id":"match-order-outside-working-set","status":"handled","trigger":"Staff have configured a working set (Settings → Active order tags and/or Working set) and this order is in neither half at create time — commonly because a stor"},{"id":"tags-never-arrive","status":"handled","trigger":"An order's tags never reach us, or go stale, once it's left 'received' — the store app tags minutes after checkout, so `orders/create` always writes `tags = nul"},{"id":"x-order-edited","status":"handled","trigger":"Customer edits the order on Shopify after it's in flight (address, items, date)."},{"id":"x-order-cancelled","status":"handled","trigger":"Customer cancels the order on Shopify mid-flight."}],"handled":9,"progress":0,"planned":0,"open":1},{"id":"order-on-map","text":"Every order has the right place on the map.","members":[{"id":"geocode-fail","status":"handled","trigger":"Address is ambiguous or un-geocodable."},{"id":"geocode-ratelimit","status":"handled","trigger":"Nominatim rate-limits or is briefly down."},{"id":"match-no-coordinates","status":"handled","trigger":"The order's delivery address never geocoded, so it has no `delivery_lat`/`delivery_lng`. Distance is now the primary ranking key, so there is nothing to rank by"},{"id":"match-ingest-region-collision","status":"handled","trigger":"Two real places share a city name in different regions, and the geocode query named only the city. Real case: order #2000031 delivers to San Carlos, Balears (Ib"},{"id":"match-ingest-cross-border-shop","status":"handled","trigger":"A shop inside a city's 20 km radius is in a DIFFERENT country from the city. Every row the ingest builds inherited the city's single country, so the shop got th"}],"handled":5,"progress":0,"planned":0,"open":0},{"id":"offer-gets-answer","text":"Every offer gets an answer, or the order moves on in time.","members":[{"id":"reachout-decline","status":"handled","trigger":"Candidate declines (with a captured reason)."},{"id":"reachout-resend","status":"handled","trigger":"The offer needs sending to the SAME florist again — they declined, or let it lapse, and the reason was ours: their `locale` was wrong so the offer went out in t"},{"id":"reachout-timeout","status":"handled","trigger":"Candidate doesn't respond before the offer times out."},{"id":"reachout-late-accept","status":"handled","trigger":"A candidate answers after their offer window lapsed — but nobody else has taken the order, it isn't past the point of delivering, and we haven't pulled the offe"},{"id":"reachout-withdrawn","status":"handled","trigger":"CX needs a specific offer off the table — wrong florist, a side-channel refusal, a change of plan — now that a lapsed offer no longer closes itself."},{"id":"reachout-nobody-answers-phone","status":"handled","trigger":"The offers went out and nobody replied either way. Email has done all it can; the order still has no florist, and the next useful act is a phone call — which is"},{"id":"reachout-call-no-answer","status":"handled","trigger":"Nobody picks up. The operator has spent the call and learned something real — this shop is not reachable right now — and there is nowhere to put it."},{"id":"reachout-engaged-then-silent","status":"handled","trigger":"A florist opens or clicks an offer, does not accept or decline, and the offer expires, leaving the order unplaced. The loop moves on to colder shops and the des"},{"id":"x-open-never-recorded","status":"handled","trigger":"A florist opens the offer, reads it, and does not answer. The system cannot tell that apart from a florist who never opened the email at all."},{"id":"x-silence-reads-as-refusal","status":"handled","trigger":"An order whose offers all EXPIRED unanswered is described to the operator as 'Every shop we asked said no'. Silence is rendered as refusal."},{"id":"x-refill-races-placement","status":"handled","trigger":"The wave engine writes candidates onto — or sends an offer for — an order that was accepted moments earlier, because the order's status changed between the tick"},{"id":"accept-race","status":"handled","trigger":"Two florists accept the same offer simultaneously."}],"handled":12,"progress":0,"planned":0,"open":0},{"id":"accepted-gets-delivered","text":"An accepted order is delivered, or handed back early enough to save it.","members":[{"id":"accept-then-bail","status":"handled","trigger":"Florist accepts, then can't actually fulfil (later cancels / goes dark)."},{"id":"accept-recipient-unreachable","status":"handled","trigger":"The florist is at the door and it doesn't open: nobody home, the buzzer is broken, the building needs a code we don't have. They need to phone the recipient. We"},{"id":"deliver-late","status":"in-progress","trigger":"Delivery is late or the photo never arrives."},{"id":"deliver-noone-home","status":"handled","trigger":"No one is home / the recipient is unavailable at delivery."},{"id":"deliver-no-photo","status":"handled","trigger":"Florist delivered the flowers but forgot / can't upload the proof photo."},{"id":"fulfil-status-race","status":"handled","trigger":"Two writers change the order's stage at the same moment."}],"handled":5,"progress":1,"planned":0,"open":0},{"id":"florist-questions-answered","text":"Every florist question gets a true answer, from the assistant or a person.","members":[{"id":"accept-has-questions","status":"handled","trigger":"The florist would take the order but doesn't understand something first — how the 70/30 pays out, whether they may substitute a flower they're short of, what ha"},{"id":"x-support-facts-stale","status":"open","trigger":"The facts are read, the model writes, and by the time the florist reads the answer the payout has moved. They were told the 30% is waiting on their photo; it re"},{"id":"x-support-thread-unanswered","status":"handled","trigger":"The assistant hands a florist's question to a person, tells them so, and nobody picks it up. A promise with a clock on it is worse than never having offered one"},{"id":"x-support-not-joined-mislabelled","status":"handled","trigger":"A florist with a real order attached to this conversation (a cold offer, or a shop a staff member manually attached to an order via `POST /api/orders/assign`, w"},{"id":"x-inbound-wrong-order","status":"handled","trigger":"A florist's reply is attached to the wrong order, putting one shop's words on another shop's job — or on the right shop's other order, which is quieter and wors"},{"id":"x-inbound-autoresponder","status":"handled","trigger":"An out-of-office reply arrives. If it were answered, two machines would write to each other indefinitely, with a real business's inbox in the middle — and it wo"},{"id":"x-inbound-opt-out","status":"handled","trigger":"A florist replies STOP, or asks to be removed, and an eager assistant tries to talk them out of it."}],"handled":6,"progress":0,"planned":0,"open":1},{"id":"shopify-agrees","text":"Shopify and we agree on every order.","members":[{"id":"shopify-closed-outside-loop","status":"handled","trigger":"The order is fulfilled or archived in Shopify without going through us — someone placed it by hand, or it was archived as done. Ours kept sitting at `received`/"},{"id":"shopify-backlog-unreconciled","status":"handled","trigger":"Orders that fell out of sync BEFORE any of this existed. Both healing sweeps are bounded to a ~14d window and capped per tick, so anything older was permanently"},{"id":"shopify-closed-under-florist","status":"handled","trigger":"Shopify says fulfilled/archived while one of OUR florists is holding the order (an `accepted`/`delivered` assignment) with an accept-leg payout already issued —"},{"id":"fulfilment-scope-missing","status":"open","trigger":"The Shopify token lacks `write_merchant_managed_fulfillment_orders`, so both customer-visible fulfilment writes are rejected. CONFIRMED LIVE 2026-09-15: the app"},{"id":"fulfilment-already-fulfilled","status":"handled","trigger":"The Shopify order has no fulfillable fulfillment orders when we try to fulfil it — a retry, a re-accept after a release, or staff fulfilling by hand in the Shop"},{"id":"writeback-fail","status":"in-progress","trigger":"The Shopify write-back API call fails."},{"id":"writeback-doublesend","status":"handled","trigger":"Risk of sending the same client notification twice."}],"handled":5,"progress":1,"planned":0,"open":1},{"id":"someone-watching","text":"Someone is watching every stuck order, and only the right person can sign in.","members":[{"id":"x-cx-spof","status":"open","trigger":"A time-critical order stalls (unsent offer, cold wave, held payout) and no human is looking."},{"id":"x-worker-outage","status":"planned","trigger":"The Worker or Supabase is down while events arrive."},{"id":"x-test-shops","status":"handled","trigger":"Test mode makes the florist experience impossible to actually drive. It redirects every florist email/SMS to the shared staff test inbox and swaps the magic lin"},{"id":"x-forwarded-magic-link","status":"open","trigger":"A florist forwards one of our messages — to a colleague, a personal address, a WhatsApp group — and the sign-in link inside it grants whoever opens it full acce"},{"id":"x-magic-link-session-fixation","status":"open","trigger":"The reverse of a forwarded link: someone sends a florist a link built from THEIR OWN magic token. The florist clicks, is silently signed into the sender's accou"},{"id":"reachout-stale-magic-link","status":"handled","trigger":"The florist opens an old message and taps a sign-in link that no longer works — past its 30-day window, or revoked after we learned it had been forwarded."}],"handled":2,"progress":0,"planned":1,"open":3}],"louis":[{"id":"photo-proves-delivery","text":"Every delivery is proven by a real photo of the order.","members":[{"id":"deliver-bad-photo","status":"open","trigger":"Photo is wrong, blurry, or clearly not the ordered arrangement."},{"id":"deliver-unreadable-upload","status":"handled","trigger":"The uploaded file's declared MIME type doesn't match its actual bytes — most often WebP bytes announced as `image/jpeg` by the browser or an Android share sheet"},{"id":"deliver-reupload-fishing","status":"open","trigger":"A florist re-uploads photo after photo until the AI gate happens to pass one."},{"id":"deliver-partial","status":"open","trigger":"Only part of a multi-bouquet / add-on order is in the photo."},{"id":"deliver-recycled-photo","status":"open","trigger":"Florist re-uploads an old or stock delivery photo to trigger payout."},{"id":"pay-deliver-unchecked-photo","status":"open","trigger":"The AI photo check doesn't run — providers switched off, or the call throws — and the 30% releases against a photo nobody and nothing has looked at. A florist c"},{"id":"deliver-dispute","status":"planned","trigger":"Customer says it never arrived despite a photo."}],"handled":1,"progress":0,"planned":1,"open":5}]},"desk":{"waiting":8,"list":[{"pr":9,"url":"https://github.com/your-org/agent-factory/pull/9","title":"Hawkeye: One of the photo checkers failed with an error instead of voting","manager":"louis","ageDays":11},{"pr":10,"url":"https://github.com/your-org/agent-factory/pull/10","title":"Concierge: The AI service was unreachable — nothing was sent","manager":"donna","ageDays":10},{"pr":13,"url":"https://github.com/your-org/agent-factory/pull/13","title":"Scout: No florist left in range — escalated","manager":"harvey","ageDays":8},{"pr":12,"url":"https://github.com/your-org/agent-factory/pull/12","title":"Concierge: Asked about money, contracts, or a person — never answered automatically","manager":"donna","ageDays":8},{"pr":14,"url":"https://github.com/your-org/agent-factory/pull/14","title":"Concierge: We hold nothing about this order to answer from","manager":"donna","ageDays":7},{"pr":37,"url":"https://github.com/your-org/agent-factory/pull/37","title":"Concierge: We can't tell which florist this is from","manager":"donna","ageDays":2},{"pr":38,"url":"https://github.com/your-org/agent-factory/pull/38","title":"Concierge: The assistant failed — nothing was sent","manager":"donna","ageDays":1},{"pr":39,"url":"https://github.com/your-org/agent-factory/pull/39","title":"Concierge: Handed to a person (planner:intent:delivery_problem)","manager":"donna","ageDays":0}],"decisions":7,"oldestDays":11,"lastMerge":"2026-10-14"},"audit":{"date":"2026-10-26","fixes":[{"pr":10,"manager":"donna","title":"Retry when the AI is busy","failedBefore":"y","passNow":"y","fixRemovedFails":"y","verdict":"proves-the-fix","falsePass":false,"note":"4 tests fail on the old code; 4 guard tests fail when their rule is broken."},{"pr":11,"manager":"donna","title":"Assistant not confident","failedBefore":"x","passNow":"y","fixRemovedFails":"x","verdict":"partly","falsePass":true,"note":"The test named as proof turns the Planner on by hand, so it can't see the switch bug."},{"pr":12,"manager":"donna","title":"Money questions","failedBefore":"h","passNow":"y","fixRemovedFails":"x","verdict":"partly","falsePass":true,"note":"Fails only on two missing labels. The main change has no test."},{"pr":13,"manager":"harvey","title":"No florist in range","failedBefore":"y","passNow":"y","fixRemovedFails":"h","verdict":"partly","falsePass":true,"note":"The AI-name fix is tested; the cost-recording step is not."},{"pr":37,"manager":"donna","title":"Which florist this is","failedBefore":"h","passNow":"y","fixRemovedFails":"x","verdict":"partly","falsePass":true,"note":"Fails only because a new file is missing. All 6 pass with the wiring line removed."},{"pr":38,"manager":"donna","title":"Assistant failed","failedBefore":"u","passNow":"y","fixRemovedFails":"u","verdict":"no-fix","falsePass":false,"note":"Notes only, no fix. The 73 existing tests pass."}]}};
+const M = DATA.managers, ORDER = DATA.order;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fmt = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Europe/Madrid" });
+const ago = (iso) => { const h = (Date.now() - new Date(iso)) / 36e5; return h < 1 ? "just now" : h < 24 ? `${Math.round(h)} h ago` : fmt(iso); };
+const TONE = { crit: "var(--crit)", warn: "var(--warn)", ok: "var(--ok)", grey: "var(--line-strong)", todo: "var(--accent)", "": "var(--edge)" };
+const ICON = {
+  harvey: '<path d="M3 10l1.5-5h15L21 10"/><path d="M4 10v10h16V10"/><path d="M3 10c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3"/><path d="M10 20v-5h4v5"/>',
+  donna: '<path d="M4 12a8 8 0 0 1 13.7-5.6L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15"/><path d="M4 20v-5h5"/>',
+  louis: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  eye: '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-2.4 3"/><path d="M6.6 6.6C4.3 8.2 3 12 3 12s4 6 9 6c1.8 0 3.4-.6 4.7-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  badge: '<path d="M12 3l2.5 2 3.2-.3.8 3.1 2.7 1.8-1.2 3 1.2 3-2.7 1.8-.8 3.1-3.2-.3L12 21l-2.5-2-3.2.3-.8-3.1-2.7-1.8 1.2-3-1.2-3 2.7-1.8.8-3.1 3.2.3z"/><path d="M9 12l2 2 4-4"/>',
+  loop: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
+  mute: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  pr: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4"/><path d="M13 3.5L10.5 6 13 8.5"/>',
+  merge: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8.3 7.3c2 3 4.5 4.7 7.2 4.7"/>',
+  back: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  stop: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  ask: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17v.5"/>',
+  hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-5-2.7L3 15.5a1.5 1.5 0 0 1 2.4-1.8L8 16"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  snooze: '<path d="M4 4h6L4 10h6"/><path d="M14 12h6l-6 8h6"/>',
+  ext: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+};
+// Runs on already-escaped text: only https links to Claude, GitHub and Slack become clickable.
+const linkify = (s) => s.replace(/https:\/\/(?:claude\.ai|github\.com|[\w-]+\.slack\.com|slack\.com)\/[^\s<"]*/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u.length > 60 ? u.slice(0, 57) + "…" : u}</a>`);
+// Each manager's Slack channel, where Claude Tag works with the team in one thread per move.
+// app_redirect opens the Slack app when installed, the browser otherwise.
+const SLACK = { team: "T00000000", donna: "C00000001", harvey: "C00000002", louis: "C00000003" };
+const slackLink = (manager) => `https://slack.com/app_redirect?team=${SLACK.team}&channel=${SLACK[manager]}`;
+// The item id lets Claude in Slack leave a receipt the page can match (.claude/rules/slack-roles.md).
+const slackPrompt = (text, item) => `@Claude in your-org/agent-factory on branch garden (Control Room item: ${item}): ${text}`;
+// The session reports back like Slack does: a receipt on control-room-log (.claude/rules/slack-roles.md).
+const codeLink = (prompt, item) => `https://claude.ai/code?prompt=${encodeURIComponent(`${prompt}${item ? `\n\n(Control Room item: ${item}) When you start, open the draft PR and finish, leave a receipt as "Report back to the Control Room" in .claude/rules/slack-roles.md describes, with "channel": "Claude Code".` : ""}`)}&repositories=your-org/agent-factory`;
+const icon = (k, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+
+// ---------------- Team actions (the page's db) ----------------
+// One document per action in "actions": {item, kind, note, by, at, until}. The newest action on an item
+// is its state; every action is also a line in "What changed".
+const KIND = {
+  "on-it": ["is on it", "hand", "var(--warn)"], done: ["marked it done", "check", "var(--ok)"], designed: ["marked it working as designed", "stop", "var(--drop)"],
+  snoozed: ["snoozed it", "snooze", "var(--drop)"], approved: ["approved the brief change", "check", "var(--ok)"], "not-now": ["put the brief change off", "snooze", "var(--drop)"],
+  reopened: ["reopened it", "back", "var(--crit)"], pr: ["opened a fix", "pr", "var(--mike)"],
+};
+let db = null, user = null, canWrite = true, actions = [], names = {}, me = null;
+// Daily snapshots and test audits the page saved in its own database (oldest first).
+let snapHistory = [], audits = [];
+// Marks made on this page (db) plus receipts Claude in Slack left on the control-room-log branch.
+const allMarks = () => [...actions, ...DATA.receipts.map((x) => ({ ...x, who: `Claude in ${x.channel || "Slack"}` }))].sort((a, b) => new Date(b.at) - new Date(a.at));
+const stateOf = (item) => {
+  const a = allMarks().find((x) => x.item === item);
+  if (!a) return null;
+  if (a.kind === "snoozed" && a.until && new Date(a.until) < new Date()) return null;
+  if (a.kind === "reopened") return null;
+  return a;
+};
+const quiet = (item) => { const s = stateOf(item); return s && ["done", "designed", "snoozed", "approved", "not-now"].includes(s.kind); };
+const who = (a) => a.who || (a.by === me ? "You" : names[a.by] || "Someone");
+function handledChip(item) {
+  const s = stateOf(item); if (!s) return "";
+  const when = s.kind === "snoozed" ? `until ${fmt(s.until)}` : ago(s.at);
+  return `<span class="handled">${icon(KIND[s.kind][1], 13)}<b>${esc(who(s))}</b> ${KIND[s.kind][0]} · ${when}</span>`;
+}
+// The buttons under any item. `copy` is a ready instruction for Claude Code; `ask` lets Claude explain it.
+function actionBar(item, { copy, ask, open, manager, noCopy } = {}) {
+  const s = stateOf(item), mine = [];
+  if (open) mine.push(`<a class="btn primary" href="${open.url}" target="_blank" rel="noopener">${icon("ext", 14)}${open.label}</a>`);
+  // With a manager: open its Slack channel and copy the instruction to paste with @Claude.
+  // Without one: open Claude Code on the web with the instruction and repo filled in.
+  if (copy && manager && SLACK[manager]) mine.push(`<a class="btn" href="${slackLink(manager)}" target="_blank" rel="noopener" data-slackcopy="${esc(slackPrompt(copy, item))}">${icon("ext", 14)}Open in Slack</a>`,
+    `<a class="btn" href="${codeLink(copy, item)}" target="_blank" rel="noopener">${icon("ext", 14)}Open in Claude Code</a>`);
+  else if (copy) mine.push(`<a class="btn" href="${codeLink(copy, item)}" target="_blank" rel="noopener">${icon("ext", 14)}Open in Claude Code</a>`);
+  if (copy && !noCopy) mine.push(`<button class="btn ghost" type="button" data-copy="${esc(manager ? slackPrompt(copy, item) : copy)}">${icon("copy", 14)}Copy</button>`);
+  if (db && canWrite) {
+    if (!s) mine.push(`<button class="btn" type="button" data-act="on-it" data-item="${item}">${icon("hand", 14)}I'm on it</button>`,
+      `<button class="btn" type="button" data-form="done" data-item="${item}">${icon("check", 14)}Done…</button>`,
+      `<button class="btn ghost" type="button" data-act="designed" data-item="${item}">Working as designed</button>`,
+      `<button class="btn ghost" type="button" data-act="snoozed" data-item="${item}">Snooze 7 days</button>`);
+    else if (s.kind === "on-it") mine.push(`<button class="btn" type="button" data-form="done" data-item="${item}">${icon("check", 14)}Done…</button>`);
+    if (s) mine.push(`<button class="btn ghost" type="button" data-act="reopened" data-item="${item}">Reopen</button>`);
+  }
+  if (ask) mine.push(`<button class="btn ghost" type="button" data-ask="${item}">${icon("ask", 14)}Explain</button>`);
+  return `<div class="acts">${mine.join("")}</div><div class="slot" data-slot="${item}"></div>`;
+}
+async function record(item, kind, note = "") {
+  const doc = { item, kind, note: note.slice(0, 500), by: me, at: new Date().toISOString() };
+  if (kind === "snoozed") doc.until = new Date(Date.now() + 7 * 864e5).toISOString();
+  try { await db.collection("actions").add(doc); toast(`Saved: ${KIND[kind][0]}.`); }
+  catch (e) { if (e?.code === "invalid_argument") { canWrite = false; render(); } toast(e?.code === "invalid_argument" ? "Only people you share this page with as Contributor or Editor can mark things." : "Couldn't save. Try again in a moment."); }
+}
+let toastT; function toast(t) { const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (el.hidden = true), 2600); }
+
+document.addEventListener("click", async (e) => {
+  // "Open in Slack": copy the instruction while the link opens the channel (copy must happen in the click).
+  const sl = e.target.closest("a[data-slackcopy]");
+  if (sl) { navigator.clipboard?.writeText(sl.dataset.slackcopy).then(() => toast("Instruction copied. Paste it in the channel to start a thread with Claude."), () => {}); return; }
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.act) { b.disabled = true; await record(b.dataset.item, b.dataset.act); return; }
+  if (b.dataset.form) {
+    const slot = document.querySelector(`[data-slot="${CSS.escape(b.dataset.item)}"]`);
+    slot.innerHTML = `<div class="form"><label class="tiny muted" for="note-${b.dataset.item}">What did you change? Paste the link to your Claude Code session or PR too. Your team sees this note.</label><textarea id="note-${b.dataset.item}" maxlength="500"></textarea><div class="acts"><button class="btn primary" type="button" data-save="${b.dataset.item}">Save as done</button><button class="btn ghost" type="button" data-cancel="${b.dataset.item}">Cancel</button></div></div>`;
+    slot.querySelector("textarea").focus(); return;
+  }
+  if (b.dataset.save) { const t = document.getElementById(`note-${b.dataset.save}`).value.trim(); b.disabled = true; await record(b.dataset.save, "done", t); return; }
+  if (b.dataset.cancel) { document.querySelector(`[data-slot="${CSS.escape(b.dataset.cancel)}"]`).innerHTML = ""; return; }
+  if (b.dataset.copy != null) {
+    const text = b.dataset.copy;
+    try { await navigator.clipboard.writeText(text); toast("Copied. Paste it into Claude Code."); }
+    catch { const slot = b.closest(".acts").nextElementSibling; if (slot) slot.innerHTML = `<p class="tiny muted">Select and copy:</p><div class="copybox">${esc(text)}</div>`; }
+    return;
+  }
+  if (b.dataset.ask) explain(b.dataset.ask, b);
+  if (b.dataset.move) { const m = DATA.moves.find((x) => x.id === b.dataset.move); if (m.action === "desk") { $("#desk").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); } else if (m.action === "manager") { current = m.manager; picker(); show("struggle"); } }
+  if (b.dataset.lane) { current = b.dataset.lane; picker(); show("struggle"); }
+});
+
+// ---------------- Explain (asks Claude, three sentences, from the page's own numbers) ----------------
+let sample = null;
+const explained = {};
+function itemContext(item) {
+  for (const id of ORDER) {
+    const m = M[id];
+    const f = m.facts.find((x) => x[2] === item);
+    if (f) return { m, text: f[1] };
+    const r = m.roots.findIndex((_, i) => `${id}:root-${i}` === item);
+    if (r >= 0) return { m, text: `${m.roots[r][1]}: ${m.roots[r][2]}` };
+  }
+  const mv = DATA.moves.find((x) => x.id === item); return mv ? { m: null, text: `${mv.title}. ${mv.detail}` } : null;
+}
+async function explain(item, btn) {
+  const slot = document.querySelector(`[data-slot="${CSS.escape(item)}"]`); if (!slot) return;
+  if (explained[item]) { slot.innerHTML = `<div class="explain">${esc(explained[item])}</div>`; return; }
+  if (!sample) { slot.innerHTML = `<p class="tiny muted">Explanations need this page open in claude.ai.</p>`; return; }
+  const c = itemContext(item); btn.disabled = true; slot.innerHTML = `<div class="explain">Thinking…</div>`;
+  const facts = c.m ? c.m.facts.map((f) => "- " + f[1]).join("\n") : "";
+  const prompt = `You explain a monitoring page to its owner, who is not technical. The page watches an "agent factory": production AI agents handle flower orders; manager agents (Harvey for supply, Donna for the order loop, Louis for delivery-photo proof) spot problems and turn them into cards; Mike, an engineer agent, writes a fix as a draft pull request; the owner reviews and merges it; a card should close when the problem stays quiet.\n\nExplain this item in exactly three short, plain sentences: what it means, why it matters for orders, and the one next step. No jargon, no lists, nothing not supported by the facts below.\n\nItem: ${c.text}\n${c.m ? `Manager: ${c.m.name} (${c.m.role}). Its other facts today:\n${facts}` : ""}`;
+  try {
+    const r = await sample(prompt, { modelTier: "quick", onText: ({ text }) => { slot.innerHTML = `<div class="explain">${esc(text)}</div>`; } });
+    explained[item] = r.text; slot.innerHTML = `<div class="explain">${esc(r.text)}</div>`;
+  } catch (e) { slot.innerHTML = `<p class="tiny muted">${e?.code === "not_granted" ? "Explanations are turned off for this page." : "Couldn't get an explanation right now."}</p>`; }
+  btn.disabled = false;
+}
+
+// ---------------- Avatar + urgency ring ----------------
+function avatar(id, size = 48) {
+  const m = M[id], r = size / 2 - 3, C = 2 * Math.PI * r, n = m.facts.length, gap = n > 1 ? 4 : 0;
+  const seg = n ? C / n - gap : C;
+  const arcs = n ? m.facts.map(([t, , fid], i) => `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${quiet(fid) ? "var(--line-strong)" : TONE[t]}" stroke-width="4" stroke-dasharray="${seg} ${C - seg}" stroke-dashoffset="${-i * (seg + gap)}"/>`).join("")
+    : `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--ok)" stroke-width="4"/>`;
+  const face = size - 14;
+  return `<span class="av" style="width:${size}px;height:${size}px" role="img" aria-label="${m.name}: ${m.critCount} red, ${m.warnCount} amber"><svg class="ring" width="${size}" height="${size}" aria-hidden="true">${arcs}</svg><span class="face" style="width:${face}px;height:${face}px;background:var(--${id})">${icon(id, Math.round(face * 0.55))}</span></span>`;
+}
+const rankOf = (id) => ORDER.indexOf(id) + 1;
+const openCount = (m) => m.facts.filter(([t, , fid]) => t === "crit" && !quiet(fid)).length;
+const urgencyWord = (m) => { const n = openCount(m); return n ? `${n} need you` : m.facts.some(([, , f]) => !quiet(f)) ? "Watch" : "Clear"; };
+const urgencyTone = (m) => openCount(m) ? "crit" : m.facts.some(([, , f]) => !quiet(f)) ? "warn" : "ok";
+const copyFor = (m, text) => `Factory problem for ${m.name} (${m.role}): ${text}\nRead docs/agent-factory/garden-1.2/part-4/README.md and the trouble paths in docs/agent-factory/garden-1.2/part-2/. Propose the smallest change to ${m.name}'s rules or brief that fixes this, prove it with a test that fails first (docs/agent-factory/writing-a-test.md), and open a draft PR.`;
+
+// Today's numbers come from the build; earlier days from the saved snapshots.
+const series = (pick) => { const days = snapHistory.filter((h) => h.date < DATA.snapshot.date).slice(-13); return [...days, DATA.snapshot].map((h) => ({ date: h.date, v: pick(h) })).filter((p) => p.v != null); };
+function spark(points, color) {
+  const W = 56, H = 16, vs = points.map((p) => p.v), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const xy = points.map((p, i) => [(i / (points.length - 1)) * (W - 4) + 2, hi === lo ? H / 2 : H - 3 - ((p.v - lo) / span) * (H - 6)]); // a flat line sits in the middle, not on the floor
+  const [lx, ly] = xy.at(-1);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${points.length} days, from ${vs[0]} to ${vs.at(-1)}"><polyline points="${xy.map((p) => p.join(",")).join(" ")}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><circle cx="${lx}" cy="${ly}" r="2.5" fill="${color}"/></svg>`;
+}
+// Against the last saved day before today. More is worse for every number shown here.
+function delta(points) {
+  if (points.length < 2) return "";
+  const d = points.at(-1).v - points.at(-2).v;
+  return `<span class="dl ${d > 0 ? "up" : d < 0 ? "down" : "same"}" title="Since ${fmt(points.at(-2).date)}">${d > 0 ? "+" + d : d < 0 ? "−" + -d : "no change"}</span>`;
+}
+// Nothing until there are two days to compare: a line of one point says nothing.
+function trendCell(label, pick, color) {
+  const p = series(pick);
+  if (p.length < 2) return "";
+  return `<span class="tm" title="${label}, last ${p.length} days">${label} ${spark(p, color)}${delta(p)}</span>`;
+}
+const hasTrend = () => snapHistory.some((h) => h.date < DATA.snapshot.date);
+
+let current = ORDER[0], screen = "today";
+
+// ---------------- Shell ----------------
+function shell() {
+  $("#sub").textContent = `Garden 1.2 · Harvey, Donna and Louis · factory data ${fmt(DATA.window.from)} to ${fmt(DATA.window.to)}`;
+  const built = new Date(DATA.builtAt), stale = (Date.now() - built) / 36e5 > 26;
+  const f = $("#fresh");
+  f.classList.toggle("bad", Boolean(DATA.silent) || stale);
+  f.querySelector("span").innerHTML = DATA.silent
+    ? `<b>Garden silent ${DATA.silent.hours} h</b> · page updated ${built.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })}`
+    : `${stale ? "<b>Not refreshed today</b> · " : ""}Updated ${built.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })}`;
+}
+function picker() {
+  const m = M[current];
+  $("#pick").innerHTML = `${avatar(current, 40)}<span class="who"><b>${m.name}</b><span>#${rankOf(current)} by urgency · ${urgencyWord(m)}</span></span><span class="chev">${icon("chev", 16)}</span>`;
+  $("#menu").innerHTML = `<div class="head">Managers, most urgent first</div>` + ORDER.map((id) => {
+    const x = M[id];
+    return `<button class="opt" role="option" type="button" data-id="${id}" aria-selected="${id === current}"><span class="rank">#${rankOf(id)}</span>${avatar(id, 44)}<span class="nm"><b>${x.name}</b><span>${x.role}</span></span><span class="pill ${urgencyTone(x)}">${urgencyWord(x)}</span></button>`;
+  }).join("");
+  $("#menu").querySelectorAll(".opt").forEach((o) => o.addEventListener("click", () => { current = o.dataset.id; ruleFocus = null; closeMenu(true); picker(); if (screen === "today") show("struggle"); else render(); }));
+}
+function openMenu() { $("#menu").hidden = false; $("#pick").setAttribute("aria-expanded", "true"); ($("#menu .opt[aria-selected=true]") || $("#menu .opt")).focus(); }
+function closeMenu(focus) { $("#menu").hidden = true; $("#pick").setAttribute("aria-expanded", "false"); if (focus) $("#pick").focus(); }
+$("#pick").addEventListener("click", () => ($("#menu").hidden ? openMenu() : closeMenu()));
+$("#menu").addEventListener("keydown", (e) => {
+  const opts = [...$("#menu").querySelectorAll(".opt")], i = opts.indexOf(document.activeElement);
+  if (e.key === "Escape") { e.preventDefault(); closeMenu(true); }
+  if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)].focus(); }
+  if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)].focus(); }
+});
+document.addEventListener("click", (e) => { if (!e.target.closest(".picker")) closeMenu(); });
+
+// ---------------- Screen 1 ----------------
+const STATES = [["never", "Never picked up", "var(--crit)"], ["queued", "Back with Mike", "var(--mike)"], ["decision", "Your decision", "var(--warn)"], ["review", "Your review", "#D99A2B"], ["fixed", "Fixed", "var(--ok)"], ["dropped", "Dropped", "var(--drop)"]];
+function moves() {
+  $("#moves").innerHTML = DATA.moves.length ? DATA.moves.map((mv, i) => {
+    const q = quiet(mv.id), m = mv.manager ? M[mv.manager] : null;
+    const primary = mv.action === "desk" ? `<button class="btn primary" type="button" data-move="${mv.id}">Show the list</button>`
+      : mv.action === "manager" ? `<button class="btn primary" type="button" data-move="${mv.id}">Open ${m.name}</button>` : "";
+    return `<article class="move ${q ? "is-handled" : ""}" style="--mt:${TONE[mv.tone]}">
+      <div class="k"><span class="no">${i + 1}</span>${m ? avatar(mv.manager, 30) : ""}</div>
+      <h3 class="txt">${mv.title}</h3>${mv.detail ? `<p class="small">${mv.detail}</p>` : ""}
+      ${handledChip(mv.id)}
+      ${primary ? `<div class="acts">${primary}</div>` : ""}
+      ${actionBar(mv.id, { copy: mv.copy || (m ? copyFor(m, mv.title) : null), ask: true, manager: mv.manager, noCopy: true })}
+    </article>`;
+  }).join("") : `<p class="empty">Nothing urgent today.</p>`;
+}
+function map() {
+  const all = Object.fromEntries(STATES.map(([k]) => [k, ORDER.reduce((s, id) => s + M[id].state[k], 0)]));
+  const max = Math.max(1, ...ORDER.flatMap((id) => STATES.map(([k]) => M[id].state[k])));
+  let neck = null;
+  for (const id of ORDER) for (const [k] of STATES.slice(0, 4)) if (!neck || M[id].state[k] > M[neck[0]].state[neck[1]]) neck = [id, k];
+  const cell = (v, color, isNeck) => {
+    const d = v ? Math.round(26 + 30 * Math.sqrt(v / max)) : 26;
+    return `<span class="cell ${v ? "" : "zero"} ${isNeck ? "neck" : ""}" style="width:${d}px;height:${d}px;background:${v ? `color-mix(in srgb, ${color} 22%, white)` : "transparent"}">${v}</span>`;
+  };
+  $("#map").innerHTML = `<table><thead><tr><th>Manager</th>${STATES.map(([, l, c], i) => `<th>${l}<span class="sw" style="background:${c}"></span></th>${i < STATES.length - 1 ? '<th aria-hidden="true"></th>' : ""}`).join("")}</tr></thead>
+    <tbody>${ORDER.map((id) => `<tr><td><button class="lane" type="button" data-lane="${id}">${avatar(id, 30)}${M[id].name}</button></td>${STATES.map(([k, , c], i) => `<td>${cell(M[id].state[k], c, neck && neck[0] === id && neck[1] === k && M[id].state[k] > 0)}</td>${i < STATES.length - 1 ? '<td class="arrow" aria-hidden="true">→</td>' : ""}`).join("")}</tr>`).join("")}</tbody>
+    <tfoot><tr><td>All</td>${STATES.map(([k], i) => `<td class="num">${all[k]}</td>${i < STATES.length - 1 ? "<td></td>" : ""}`).join("")}</tr></tfoot></table>`;
+}
+function ranking() {
+  $("#trend-note").textContent = hasTrend() ? "" : " Trend lines start tomorrow.";
+  const maxCards = Math.max(1, ...ORDER.map((id) => M[id].nums.cards));
+  $("#ranking").innerHTML = ORDER.map((id, i) => {
+    const m = M[id];
+    const shown = m.facts.slice(0, 3), extra = m.facts.length - shown.length;
+    const track = STATES.map(([k, l, c]) => m.state[k] ? `<i style="width:${(m.state[k] / maxCards) * 100}%;background:${c}" title="${l}: ${m.state[k]}"></i>` : "").join("");
+    const lab = STATES.filter(([k]) => m.state[k]).map(([k, l, c]) => `<span><i style="background:${c}"></i>${l} ${m.state[k]}</span>`).join("");
+    return `<article class="mcard ${i === 0 ? "top" : ""}" style="--mc:var(--${id})">
+      <span class="rk">${i + 1}</span>
+      <button class="lane" type="button" data-lane="${id}" aria-label="Open ${m.name}" style="background:none;border:0;padding:0;cursor:pointer">${avatar(id, 68)}</button>
+      <div class="body">
+        <div class="title"><h2>${m.name}</h2><span class="muted small">${m.role}</span><span class="pill ${urgencyTone(m)}">${urgencyWord(m)}</span></div>
+        <div class="facts">${shown.map(([t, s, fid]) => `<div class="fact ${quiet(fid) ? "is-handled" : ""}"><i class="dot ${quiet(fid) ? "grey" : t}"></i><span class="txt">${s} ${handledChip(fid)}</span></div>`).join("") || `<div class="fact"><i class="dot ok"></i><span>Nothing needs you.</span></div>`}</div>
+        <div class="state"><div class="track" aria-label="Where its ${m.nums.cards} cards are now">${track}</div><div class="lab"><span><b>${m.nums.cards} cards</b></span>${lab}</div></div>
+        <div class="trends">${trendCell("Never picked up", (h) => h.managers?.[id]?.never, "var(--crit)")}${trendCell("Waiting for your review", (h) => h.managers?.[id]?.review, "#D99A2B")}${trendCell("Red facts", (h) => h.managers?.[id]?.red, "var(--crit)")}</div>
+        <div class="acts"><button class="btn" type="button" data-lane="${id}">Open ${m.name}${extra > 0 ? ` · ${extra} more` : ""}</button><a class="btn ghost" href="${slackLink(id)}" target="_blank" rel="noopener">${icon("ext", 14)}${m.name}'s Slack channel</a></div>
+      </div>
+    </article>`;
+  }).join("");
+}
+function desk() {
+  const k = DATA.desk, tone = k.oldestDays > 3 ? "crit" : k.waiting ? "warn" : "ok";
+  $("#desk-pill").className = `pill ${tone}`; $("#desk-pill").textContent = tone === "crit" ? "Needs you" : tone === "warn" ? "Watch" : "Clear";
+  $("#desk-sum").innerHTML = `<b>${k.waiting} fixes to review</b> and <b>${k.decisions} questions to decide</b>.${k.lastMerge ? ` Last merge ${fmt(k.lastMerge)}.` : ""}`;
+  document.getElementById("desk-trend")?.remove();
+  $("#desk-sum").insertAdjacentHTML("afterend", `<div class="trends" id="desk-trend">${trendCell("Fixes to review", (h) => h.desk?.waiting, "#D99A2B")}${trendCell("Oldest wait, days", (h) => h.desk?.oldestDays, "var(--crit)")}</div>`);
+  $("#desk-list").innerHTML = k.list.length ? k.list.map((d) => {
+    const c = d.ageDays > 6 ? "var(--crit)" : d.ageDays > 3 ? "var(--warn)" : "var(--edge)";
+    return `<div class="drow"><i class="dot" style="background:var(--${d.manager})" title="${M[d.manager]?.name ?? ""}"></i>
+      <span class="t"><span title="${d.title}"><b>#${d.pr}</b> ${d.title}</span><span class="age" aria-label="${d.ageDays} days waiting"><i style="width:${Math.min(100, (d.ageDays / 14) * 100)}%;background:${c}"></i><b></b></span><span class="tiny muted">${d.ageDays} days · ${M[d.manager]?.name ?? ""}</span></span>
+      <a class="btn" href="${d.url}" target="_blank" rel="noopener">${icon("ext", 14)}Open</a></div>`;
+  }).join("") : `<p class="empty">Nothing waits for your review.</p>`;
+}
+const EV = { pr: ["pr", "var(--mike)"], merged: ["merge", "var(--ok)"], "came-back": ["back", "var(--crit)"], "gave-up": ["stop", "var(--warn)"], decision: ["ask", "var(--warn)"] };
+function itemLabel(item) {
+  const c = itemContext(item); if (c) return c.text;
+  if (item.endsWith(":brief-change")) return `${M[item.split(":")[0]]?.name}'s brief change`;
+  return item;
+}
+function feed() {
+  const human = allMarks().map((a) => ({ at: a.at, human: true, a }));
+  const auto = DATA.activity.map((e) => ({ at: e.at, e }));
+  const all = [...human, ...auto].sort((x, y) => new Date(y.at) - new Date(x.at)).slice(0, 40);
+  $("#feed").innerHTML = all.length ? all.map((x) => {
+    if (x.human) {
+      const a = x.a, [verb, ic, col] = KIND[a.kind] || ["acted", "check", "var(--ink)"];
+      return `<div class="ev human"><span class="ic" style="background:${col}">${icon(ic, 14)}</span><span><b>${esc(who(a))}</b> ${verb}${a.kind === "snoozed" ? ` until ${fmt(a.until)}` : ""}<br><span class="small">${esc(itemLabel(a.item))}</span>${a.note ? `<div class="note">${linkify(a.who ? a.note : esc(a.note))}</div>` : ""}${a.pr || a.thread ? `<div class="acts" style="margin-top:4px">${a.pr ? `<a class="btn ghost" href="${a.pr}" target="_blank" rel="noopener">${icon("pr", 13)}The fix</a>` : ""}${a.thread ? `<a class="btn ghost" href="${a.thread}" target="_blank" rel="noopener">${icon("ext", 13)}Slack thread</a>` : ""}</div>` : ""}<div class="meta">${ago(a.at)}</div></span></div>`;
+    }
+    const e = x.e, [ic, col] = EV[e.kind] || ["pr", "var(--edge)"];
+    return `<div class="ev"><span class="ic" style="background:${col}">${icon(ic, 14)}</span><span>${e.url ? `<a href="${e.url}" target="_blank" rel="noopener">${e.text}</a>` : e.text}<div class="meta">${M[e.manager]?.name ?? ""} · ${ago(e.at)} · from the data</div></span></div>`;
+  }).join("") : `<p class="empty">Nothing yet. Marks the team makes on this page appear here with their names.</p>`;
+}
+
+// ---------------- Screen 2 ----------------
+function whoStrip() {
+  const m = M[current];
+  $("#s2-who").innerHTML = `${avatar(current, 60)}<span class="t"><span class="muted small">#${rankOf(current)} by urgency · ${m.role} · reads ${m.reads}</span><span class="lead">${m.lead}</span><span class="acts"><a class="btn" href="${slackLink(current)}" target="_blank" rel="noopener">${icon("ext", 14)}Talk about ${m.name} in Slack</a></span></span>`;
+}
+function sankey() {
+  const m = M[current], [total, ...paths] = m.flow, el = $("#sankey");
+  $("#s2-total").textContent = total[1];
+  if (!paths.length) { el.innerHTML = `<p class="empty" style="grid-column:1/-1">No cards for ${m.name} yet.</p>`; return; }
+  const rowH = 58, H = paths.length * rowH, W = 210, x0 = 18, x1 = W - 6, inner = H - 24;
+  const sum = paths.reduce((s, p) => s + p[1], 0);
+  let y = (H - inner) / 2;
+  const bands = paths.map(([label, count, tone], i) => {
+    const t0 = Math.max(3, (count / sum) * inner), t1 = Math.min(rowH - 18, Math.max(4, t0));
+    const a = y; y += t0;
+    const cy = i * rowH + rowH / 2, b0 = cy - t1 / 2, b1 = cy + t1 / 2, mx = (x0 + x1) / 2;
+    const d = `M${x0},${a} C${mx},${a} ${mx},${b0} ${x1},${b0} L${x1},${b1} C${mx},${b1} ${mx},${a + t0} ${x0},${a + t0} Z`;
+    return `<path d="${d}" fill="${TONE[tone]}" fill-opacity="${tone === "grey" || tone === "" ? .45 : .32}"><title>${count} cards: ${label}</title></path><rect x="${x1}" y="${b0}" width="6" height="${t1}" rx="1.5" fill="${TONE[tone]}"/>`;
+  }).join("");
+  const svg = `<svg viewBox="0 0 ${W + 2} ${H}" height="${H}" preserveAspectRatio="none" role="img" aria-label="${total[1]} cards split by the path they took"><rect x="2" y="${(H - inner) / 2}" width="${x0 - 2}" height="${inner}" rx="3" fill="var(--${current})"/>${bands}</svg>`;
+  const rows = paths.map(([label, count, tone]) => {
+    const parts = label.split(" → ");
+    const chips = parts.map((p, i) => `<span class="st ${i === parts.length - 1 ? tone : ""}">${p}</span>`).join('<span class="ar">→</span>');
+    return `<div class="path" style="height:${rowH}px"><span class="c">${count}</span><span class="steps">${chips}</span></div>`;
+  }).join("");
+  el.innerHTML = `${svg}<div class="paths">${rows}</div>`;
+}
+const SIT = { handled: "var(--ok)", "in-progress": "var(--warn)", planned: "var(--drop)", open: "var(--crit)" };
+const SIT_WORD = { handled: "handled", "in-progress": "being built", planned: "planned", open: "open: nobody has settled how to handle it" };
+let ruleFocus = null;
+function wheel() {
+  const rules = DATA.rules?.[current] || [], el = $("#wheel"), list = $("#rlist");
+  $("#rules-card").hidden = !rules.length;
+  if (!rules.length) return;
+  const all = rules.flatMap((r, ri) => r.members.map((m) => ({ ...m, ri })));
+  const N = all.length, one = rules.length === 1, R1 = one ? 0 : 92,  // one rule: its situations sit straight around the manager
+    R2 = 162, gap = rules.length > 1 ? 0.5 : 0;   // gap: empty slots between rules
+  const slots = N + gap * rules.length;
+  let k = 0;
+  const angOf = [];
+  rules.forEach((r) => { r.members.forEach(() => { angOf.push(((k + 0.5) / slots) * 2 * Math.PI); k += 1; }); k += gap; });
+  const pt = (a, rad) => [rad * Math.sin(a), -rad * Math.cos(a)];
+  const color = `var(--${current})`;
+  let i = 0, spokes = "", dots = "", nodes = "";
+  rules.forEach((r, ri) => {
+    const angs = r.members.map(() => angOf[i++]);
+    const mid = angs.length ? (angs[0] + angs.at(-1)) / 2 : 0;
+    const [rx, ry] = pt(mid, R1);
+    const on = ruleFocus === ri ? " on" : "";
+    if (!one) spokes += `<line class="sp${on}" data-r="${ri}" x1="0" y1="0" x2="${rx}" y2="${ry}" stroke="${color}" stroke-opacity=".55" stroke-width="2"/>`;
+    r.members.forEach((m, mi) => {
+      const [dx, dy] = pt(angs[mi], R2), [cx, cy] = pt(angs[mi], R1 + 30);
+      spokes += `<path class="sp${on}" data-r="${ri}" d="M${rx},${ry} Q${cx},${cy} ${dx},${dy}" fill="none" stroke="var(--line-strong)" stroke-width="1"/>`;
+      dots += `<circle class="dt${on}" data-r="${ri}" cx="${dx}" cy="${dy}" r="${m.status === "open" ? 5.5 : 4}" fill="${SIT[m.status]}"><title>${m.id}: ${SIT_WORD[m.status]}${m.trigger ? ". " + m.trigger : ""}</title></circle>`;
+    });
+    if (!one) nodes += `<g class="sp${on}" data-r="${ri}"><circle cx="${rx}" cy="${ry}" r="10" fill="${color}" stroke="var(--bg)" stroke-width="2"/><text x="${rx}" y="${ry}" dy="0.35em" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">${ri + 1}</text></g>`;
+  });
+  const face = 46;
+  el.innerHTML = `<svg viewBox="-185 -185 370 370" role="img" aria-label="${M[current].name}'s ${rules.length} rules and their ${N} situations">${spokes}${dots}${nodes}<circle r="28" fill="${color}" stroke="var(--bg)" stroke-width="3"/><svg x="${-face / 4}" y="${-face / 4}" width="${face / 2}" height="${face / 2}" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICON[current]}</svg></svg>`;
+  el.classList.toggle("focus", ruleFocus != null);
+  const open = rules.reduce((a, r) => a + r.open, 0);
+  list.innerHTML = `<p class="rsum">${M[current].name} owns ${rules.length} ${rules.length === 1 ? "rule" : "rules"} covering ${N} situations. ${open ? `<b style="color:var(--crit)">${open} ${open === 1 ? "is" : "are"} still open.</b>` : "All are handled or planned."}${one ? "" : " Click a rule to see it on the wheel."}</p>` + rules.map((r, ri) => {
+    const n = r.members.length || 1;
+    const seg = (v, c) => v ? `<i style="width:${(v / n) * 100}%;background:${c}"></i>` : "";
+    return `<button class="rrule" type="button" data-rule="${ri}" aria-pressed="${ruleFocus === ri}">
+      <span class="no" style="background:${color}">${ri + 1}</span>
+      <span class="tx">${r.text}<small>${r.members.length} situations${r.open ? ` · <b style="color:var(--crit)">${r.open} open</b>` : ""}</small></span>
+      <span class="mini">${seg(r.handled, SIT.handled)}${seg(r.progress, SIT["in-progress"])}${seg(r.planned, SIT.planned)}${seg(r.open, SIT.open)}</span>
+    </button>`;
+  }).join("");
+  list.querySelectorAll(".rrule").forEach((b) => b.addEventListener("click", () => { const ri = +b.dataset.rule; ruleFocus = ruleFocus === ri ? null : ri; wheel(); }));
+}
+const SIG_ICON = ["eye", "badge", "loop", "mute"];
+function sigs() {
+  const m = M[current], n = m.nums;
+  const parse = (v) => { const r = /^(\d+) of (\d+)/.exec(v); return r ? [+r[1], +r[2]] : null; };
+  $("#sigs").innerHTML = m.signals.map(([q, t, v, a], i) => {
+    const frac = i === 0 ? [n.never, n.cards] : parse(v);
+    const bar = t === "todo" ? `<div class="tr none"></div>` : frac && frac[1] ? `<div class="tr"><i style="width:${(frac[0] / frac[1]) * 100}%"></i></div>` : "";
+    const val = t === "todo" ? "Not measured" : i === 0 ? `${n.never} of ${n.cards}` : v;
+    return `<div class="sig" style="--tc:${t === "todo" ? "var(--muted)" : TONE[t]}"><div class="h">${icon(SIG_ICON[i], 18)}<b>${q}</b><span class="v">${val}</span></div>${bar}<p>${a}</p></div>`;
+  }).join("");
+}
+function facts2() {
+  const m = M[current];
+  $("#s2-facts").innerHTML = m.facts.length ? m.facts.map(([t, s, fid]) => `<div class="item ${quiet(fid) ? "is-handled" : ""}" style="--rc:${TONE[t]}"><div class="txt">${s}</div>${handledChip(fid)}${actionBar(fid, { copy: copyFor(m, s), ask: true, manager: current })}</div>`).join("")
+    : `<p class="empty">Nothing needs doing for ${m.name}.</p>`;
+}
+function roots() {
+  const m = M[current];
+  $("#roots").innerHTML = m.roots.length ? m.roots.map(([t, title, ev], i) => `<div class="item" style="--rc:${TONE[t]}"><div class="txt"><h3>${title}</h3>${ev}</div><div class="acts"><button class="btn ghost" type="button" data-ask="${current}:root-${i}">${icon("ask", 14)}Explain</button></div><div class="slot" data-slot="${current}:root-${i}"></div></div>`).join("")
+    : `<p class="empty">No pattern stands out for ${m.name} yet.</p>`;
+}
+function fixes() {
+  const c = M[current].cases;
+  const step = (v, l) => `<span><i class="${v === true ? "y" : v === false ? "x" : ""}"></i>${l}</span>`;
+  $("#fixes").innerHTML = c.length ? c.map(([id, txt, [t, lab], life]) => `<div class="fix">
+      <a class="id" href="${life.url}" target="_blank" rel="noopener">${id}</a>
+      <span><span class="t" title="${txt}">${txt}</span><span class="pill ${t}" style="margin-top:4px">${lab}</span></span>
+      <span class="life" aria-label="Opened; tests ${life.proven === true ? "prove it" : life.proven === false ? "do not prove it" : "not checked"}; ${life.merged ? "merged" : "not merged"}; ${life.quiet === true ? "stayed quiet" : life.quiet === false ? "came back" : "quiet not known yet"}">${step(true, "Opened")}${step(life.proven, "Proven")}${step(life.merged || null, "Merged")}${step(life.quiet, "Quiet")}</span>
+    </div>`).join("") : `<p class="empty">Mike hasn't opened a fix for ${M[current].name}'s agents yet.</p>`;
+}
+
+// ---------------- Screen 3 ----------------
+const PROPOSAL = {
+  donna: {
+    del: "Open a card for every reason the planner gives.",
+    add: [["Group alerts by situation, not by the client's email subject.", "One problem is filed as many cards."], ["When the rules say a person decides, log it as \"dropped as designed\". Don't send it to Mike.", "Many of Mike's runs find it was working as designed."]],
+  },
+};
+function stepThree() {
+  const m = M[current], n = m.nums, p = PROPOSAL[current], item = `${current}:brief-change`, s = stateOf(item);
+  $("#s3-lead").innerHTML = `Change one thing in <b>${m.name}</b>'s instructions, replay its past cards with the old and the new version, and only then let it go live.`;
+  const approved = s && s.kind === "approved";
+  $("#k1").className = `knob ${approved ? "done" : p ? "on" : ""}`;
+  $("#step1").innerHTML = `<div class="card-h"><h3>The change</h3><span class="pill ${approved ? "ok" : p ? "warn" : "grey"}">${approved ? "Approved" : p ? "Drafted, not applied" : "Nothing drafted"}</span></div>` + (p
+    ? `<div class="diff"><span class="del">${p.del}</span>${p.add.map(([a, r]) => `<span class="add">${a}</span><span class="r">Why: ${r}</span>`).join("")}</div>${handledChip(item)}
+       <div class="acts">${db && canWrite && !s ? `<button class="btn primary" type="button" data-act="approved" data-item="${item}">Approve</button><button class="btn" type="button" data-act="not-now" data-item="${item}">Not now</button>` : ""}<button class="btn" type="button" data-copy="${esc(`Apply this change to ${m.name}'s brief (the manager role file for ${m.role}):\n- Remove: ${p.del}\n${p.add.map(([a]) => "- Add: " + a).join("\n")}\nKeep everything else. Open a draft PR.`)}">${icon("copy", 14)}Copy for Claude Code</button></div><div class="slot" data-slot="${item}"></div>`
+    : `<p class="small">No change drafted for ${m.name} yet.${m.roots[0] ? ` The first target would be <b>${m.roots[0][1].toLowerCase()}</b>.` : ""}</p>`);
+  const seg = (v, c) => v > 0 ? `<i style="width:${(v / Math.max(1, n.cards)) * 100}%;background:${c}" title="${v}"></i>`  : "";
+  const st = m.state;
+  $("#step2").innerHTML = `<div class="card-h"><h3>Replay ${n.cards} past cards</h3><span class="pill grey">No replay tool yet</span></div><div class="rp">
+      <div class="rrow"><span>Today, before any change</span><span class="stack">${STATES.map(([k, , c]) => seg(st[k], c)).join("")}</span></div>
+      <div class="rrow"><span>New brief</span><span class="stack ghost">Not run</span></div>
+      <div class="rrow"><span>Unchanged copy</span><span class="stack ghost">Not run</span></div>
+    </div>
+    <div class="legend">${STATES.filter(([k]) => st[k]).map(([k, l, c]) => `<span><i style="background:${c}"></i>${l} ${st[k]}</span>`).join("")}</div>
+    <p class="small">The unchanged copy must match today's bar, or the replay itself is broken. A change passes only if it holds on every replay.</p>`;
+  const r = 22, C = 2 * Math.PI * r, done = Math.min(10, m.closed);
+  $("#step3").innerHTML = `<div class="card-h"><h3>Go live, then watch</h3><span class="pill grey">Waits for steps 1 and 2</span></div>
+    <div class="unlock"><svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style="transform:rotate(-90deg)"><circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--inset)" stroke-width="6"/><circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--${current})" stroke-width="6" stroke-dasharray="${(done / 10) * C} ${C}" stroke-linecap="round"/></svg>
+    <span class="small"><b>${m.closed} of 10 closed cards</b><br>${m.name}'s before-and-after trend appears at 10.</span></div>
+    <div class="trends">${trendCell("Never picked up", (h) => h.managers?.[current]?.never, "var(--crit)")}${trendCell("Red facts", (h) => h.managers?.[current]?.red, "var(--crit)")}</div>
+    <p class="small">A fix counts only if the problem goes quiet for a real reason: not because the alert changed, orders fell, or alerts moved elsewhere. Cards dropped as designed go on your weekly list, so a fix can't just refuse more.</p>`;
+  const rows = DATA.audit.fixes.filter((f) => f.manager === current);
+  const mk = (v) => `<span class="mk ${v}">${{ y: "✓", x: "✗", h: "~", u: "–" }[v]}</span>`;
+  $("#matrix").innerHTML = rows.length
+    ? `<table><thead><tr><th>Fix</th><th>Failed before the fix</th><th>Passes now</th><th>Fails with the main fix removed</th><th>What the check found</th></tr></thead><tbody>${rows.map((f) => `<tr><td><a href="https://github.com/your-org/agent-factory/pull/${f.pr}" target="_blank" rel="noopener"><b>#${f.pr}</b></a> ${f.title}</td><td class="c">${mk(f.failedBefore)}</td><td class="c">${mk(f.passNow)}</td><td class="c">${mk(f.fixRemovedFails)}</td><td>${f.note}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="empty">None of ${m.name}'s fixes has been re-checked yet (last audit ${fmt(DATA.audit.date)}).</p>`;
+  const past = audits.filter((a) => a.date !== DATA.audit.date).concat([{ date: DATA.audit.date, fixes: DATA.audit.fixes }]).sort((a, b) => a.date.localeCompare(b.date));
+  const rowsH = past.map((a) => { const f = (a.fixes || []).filter((x) => x.manager === current && x.verdict !== "no-fix"); return { date: a.date, checked: f.length, fp: f.filter((x) => x.falsePass).length }; }).filter((x) => x.checked);
+  $("#matrix").insertAdjacentHTML("beforeend", rowsH.length ? `<div style="margin-top:14px"><h3 style="margin-bottom:6px">Audit history for ${m.name}</h3><div class="dlist">${rowsH.map((x) => `<div class="drow" style="grid-template-columns:90px minmax(0,1fr) auto"><b>${fmt(x.date)}</b><span class="age" style="height:8px"><i style="width:${(x.fp / x.checked) * 100}%;background:var(--crit)"></i></span><span class="tiny">${x.fp} of ${x.checked} passed with the fix removed</span></div>`).join("")}</div><p class="tiny muted" style="margin-top:6px">Each audit is saved here the first time the page opens with it, so the history grows audit by audit.</p></div>` : "");
+}
+
+// ---------------- Tabs ----------------
+function render() {
+  picker();
+  if (screen === "today") { moves(); map(); ranking(); desk(); feed(); }
+  if (screen === "struggle") { whoStrip(); sankey(); sigs(); wheel(); facts2(); roots(); fixes(); }
+  if (screen === "fix") stepThree();
+}
+function show(id) {
+  screen = id;
+  ["today", "struggle", "fix"].forEach((s) => { $("#scr-" + s).hidden = s !== id; $("#tab-" + s).setAttribute("aria-selected", String(s === id)); });
+  render(); window.scrollTo({ top: 0 });
+}
+["today", "struggle", "fix"].forEach((s) => $("#tab-" + s).addEventListener("click", () => show(s)));
+document.querySelector("nav.tabs").addEventListener("keydown", (e) => {
+  const tabs = ["today", "struggle", "fix"], i = tabs.indexOf(screen);
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const n = tabs[(i + (e.key === "ArrowRight" ? 1 : 2)) % 3]; show(n); $("#tab-" + n).focus(); }
+});
+
+shell();
+const start = location.hash.slice(1);
+show(["today", "struggle", "fix"].includes(start) ? start : "today");
+
+// Capabilities light up after the first paint; the page works without them.
+(async () => {
+  const use = window.claude?.use;
+  if (!use) return;
+  const [d, u, s] = await Promise.all([use("db"), use("user"), use("sample")]);
+  sample = s; user = u;
+  if (u) { me = await u.id(); const c = await u.can?.("data.write"); if (c === false) canWrite = false; }
+  if (!d) return;
+  db = d;
+  // Save today's snapshot and the current audit once; anyone who can edit the page does it by opening it.
+  if (canWrite) {
+    const once = async (path, body) => { try { const g = await d.doc(path).get(); if (!g.exists) await d.doc(path).set(body); } catch {} };
+    await once("snapshots/" + DATA.snapshot.date, DATA.snapshot);
+    await once("audits/" + DATA.audit.date, { date: DATA.audit.date, fixes: DATA.audit.fixes });
+  }
+  d.collection("snapshots").orderBy("date").limit(400).onSnapshot((snap) => { snapHistory = snap.docs.map((x) => x.data()); render(); }, () => {});
+  d.collection("audits").orderBy("date").limit(200).onSnapshot((snap) => { audits = snap.docs.map((x) => x.data()); render(); }, () => {});
+  d.collection("actions").orderBy("at", "desc").limit(300).onSnapshot(async (snap) => {
+    actions = snap.docs.map((x) => ({ id: x.id, ...x.data() }));
+    const ids = [...new Set(actions.map((a) => a.by).filter(Boolean))];
+    if (u && ids.length) { const ps = await u.profiles(ids); names = Object.fromEntries(ids.map((id) => [id, ps[id]?.name || ""])); }
+    render();
+  }, () => {});
+  render();
+})();
+</script>
