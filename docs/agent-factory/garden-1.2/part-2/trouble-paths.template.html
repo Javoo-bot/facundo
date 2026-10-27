@@ -1,0 +1,310 @@
+<meta charset="utf-8">
+<title>Trouble Paths</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: corporate-trust, light only by choice (same tokens as rule-map.html).
+   Header + totals, then two step graphs (at work, at the desk) beside a detail panel, then the roots. */
+:root {
+  color-scheme: light;
+  --bg: #FFFFFF; --panel: #F8FAFC; --inset: #F1F5F9;
+  --ink: #0F1722; --body: #3B4657; --muted: #5B6777;
+  --line: #E1E7EF; --line-strong: #C7D0DC; --edge: #A9B4C2;
+  --accent: #1F4FE0; --accent-wash: #EAF0FD;
+  --ok: #0E7F4B; --crit: #C0362C; --warn: #A86400;
+  --ok-wash: #E8F4EE; --crit-wash: #FBECEA; --warn-wash: #FBF3E6;
+  --harvey: #2D6A73; --donna: #8A5A1F; --louis: #7B3F8C; --jessica: #0F1722;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+body { background: var(--bg); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; color: var(--ink); font-weight: 600; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: clamp(1.8rem, 3.2vw, 2.2rem); letter-spacing: -.01em; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.box { width: 14px; height: 10px; border-radius: 3px; display: inline-block; flex: none; border: 1px solid; }
+
+.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end; }
+.top .intro { display: grid; gap: 4px; max-width: 74ch; }
+.stats { display: grid; grid-template-columns: repeat(4, auto); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stat { padding: 8px 14px; display: grid; border-left: 1px solid var(--line); }
+.stat:first-child { border-left: 0; }
+.stat b { font-size: 20px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.alert { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; border: 1px solid var(--crit); background: var(--crit-wash); border-radius: 8px; color: var(--ink); }
+.alert b { color: var(--crit); }
+
+.section { display: grid; gap: 10px; border-top: 1px solid var(--line-strong); padding-top: 18px; }
+.section-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; justify-content: space-between; }
+.section-head p { max-width: 80ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+.graph { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-width: 0; background: var(--bg); }
+.graph .scroll { overflow: auto; max-height: 78vh; }
+.graph svg { display: block; }
+.foot { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted); }
+.foot span { display: inline-flex; gap: 6px; align-items: center; }
+.foot .hint { margin-left: auto; }
+
+.panel { border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 8px; min-width: 0; background: var(--bg); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: 78vh; overflow: auto; }
+.panel .k { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.panel ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.panel li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.panel li span:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+.panel li .pct { color: var(--muted); font-size: 12px; min-width: 3.5em; }
+
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; font-weight: 500; border: 0; background: var(--bg); color: var(--body); padding: 6px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #FFFFFF; }
+.seg button:hover:not([aria-pressed="true"]) { background: var(--inset); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+svg .node rect { stroke-width: 1.5px; }
+svg .node text { font-family: var(--sans); }
+svg .node .t { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+svg .node .c { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+svg .node { cursor: pointer; }
+svg .node.sel rect { stroke: var(--accent); stroke-width: 3px; }
+svg .e path { fill: none; }
+svg .e .hit { stroke: transparent; stroke-width: 14px; }
+svg .e text { font-family: var(--sans); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+svg .dim { opacity: .12; }
+svg .hl path.line { stroke: var(--accent) !important; }
+svg .hl text { fill: var(--accent) !important; }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: #FFFFFF; font-size: 12.5px; padding: 6px 9px; border-radius: 6px; max-width: 280px; z-index: 20; }
+
+.roots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 12px; }
+.root { font: inherit; text-align: left; color: var(--body); cursor: pointer; border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 6px; align-content: start; background: var(--bg); min-width: 0; transition: border-color .12s, background .12s; }
+.root:hover { border-color: var(--accent); background: var(--panel); }
+.rhead { display: flex; gap: 8px; align-items: center; }
+.why { font-size: 14px; }
+.seen { font-size: 12.5px; color: var(--muted); }
+.root[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.root header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.crit { color: var(--crit); background: var(--crit-wash); }
+.pill.warn { color: var(--warn); background: var(--warn-wash); }
+.who { font-size: 12px; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.root dl { margin: 0; display: grid; gap: 6px; }
+.root dt { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.root dd { margin: 0; font-size: 14px; }
+.root ul { margin: 0; padding-left: 18px; font-size: 13px; }
+.root .show { justify-self: start; font: inherit; font-size: 13px; font-weight: 500; color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+.tablebox { border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+
+@media (max-width: 1080px) { .main { grid-template-columns: 1fr; } .panel { position: static; max-height: none; } }
+@media (max-width: 760px) { .top { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, auto); } .stat:nth-child(3) { border-left: 0; } .foot .hint { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="intro">
+      <p class="muted" style="font-size:12px;font-weight:500;letter-spacing:.02em">Garden 1.2 · Part 2</p>
+      <h1>Trouble paths</h1>
+      <p>What the managers' agents do once something goes wrong. Thick lines are the usual path; red and amber lines are trouble.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div id="silent"></div>
+
+  <section class="section" id="work">
+    <div class="section-head">
+      <h2>At work: a case goes wrong</h2>
+      <p class="muted" id="work-sub"></p>
+    </div>
+    <div class="graph"><svg id="g-work" role="img" aria-label="Step graph of cases at work"></svg><div class="foot" id="foot-work"></div></div>
+  </section>
+
+  <section class="section" id="desk">
+    <div class="section-head">
+      <h2>At the desk: the trouble becomes a card</h2>
+      <div class="seg" id="mgr" role="group" aria-label="Manager"></div>
+    </div>
+    <p class="muted" id="desk-sub"></p>
+    <div class="graph"><svg id="g-desk" role="img" aria-label="Step graph of factory cards"></svg><div class="foot" id="foot-desk"></div></div>
+  </section>
+
+  <section class="section" id="why">
+    <div class="section-head">
+      <h2>Why it happens</h2>
+      <p class="muted">Click one to see it on the graph.</p>
+    </div>
+    <div class="roots" id="roots"></div>
+  </section>
+
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script>
+const DATA = __DATA__;
+const $ = (s) => document.querySelector(s);
+const fmt = (n) => Number(n).toLocaleString("en-GB");
+const day = (s) => s ? new Date(s).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }) : "—";
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const NS = "http://www.w3.org/2000/svg";
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const KIND = {
+  ok: { fill: "--ok-wash", stroke: "--ok", label: "Worked" },
+  person: { fill: "--inset", stroke: "--line-strong", label: "Handed on by design" },
+  held: { fill: "--warn-wash", stroke: "--warn", label: "Waits or gives up" },
+  fail: { fill: "--crit-wash", stroke: "--crit", label: "Failed" },
+  step: { fill: "--bg", stroke: "--line-strong", label: "Step" },
+  edge: { fill: "--panel", stroke: "--muted", label: "Start or end" },
+};
+const MGR = { harvey: "Harvey", donna: "Donna", louis: "Louis", jessica: "Jessica" };
+const edgeTone = (kind) => kind === "fail" ? "--crit" : kind === "held" ? "--warn" : "--edge";
+
+// ---- Header ----
+const T = DATA.totals;
+$("#stats").innerHTML = [
+  [fmt(T.cases), "cases with trouble"], [fmt(T.events), "steps logged"], [fmt(T.cards), "cards"], [fmt(T.runs), "runs by Mike"],
+].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+if (DATA.silent) $("#silent").innerHTML = `<div class="alert"><b>Silent</b><span>The garden has logged no agent steps for ${DATA.silent.hours} hours (last one ${day(DATA.silent.since)}). The graphs below stop there. Check the garden before reading them as today's behaviour.</span></div>`;
+$("#work-sub").textContent = `${day(DATA.window.firstEventAt)} – ${day(DATA.window.lastEventAt)} · 24 busiest lines`;
+$("#desk-sub").textContent = `Cards since ${day(DATA.window.firstCardAt)} · built ${day(DATA.builtAt)}`;
+
+// ---- Graph ----
+const tip = $("#tip");
+function showTip(ev, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = Math.min(ev.clientX + 12, innerWidth - 300) + "px"; tip.style.top = (ev.clientY + 12) + "px"; }
+const hideTip = () => { tip.hidden = true; };
+
+function el(name, attrs, parent) { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+function wrapLabel(s, max = 24) {
+  const words = s.split(" "); const lines = [""];
+  for (const w of words) { const l = lines[lines.length - 1]; if ((l + " " + w).trim().length > max && l) lines.push(w); else lines[lines.length - 1] = (l + " " + w).trim(); }
+  return lines.slice(0, 2);
+}
+function smooth(pts) {
+  if (pts.length < 3) return `M${pts[0].x},${pts[0].y} L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`;
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ` C${p1.x + (p2.x - p0.x) / 6},${p1.y + (p2.y - p0.y) / 6} ${p2.x - (p3.x - p1.x) / 6},${p2.y - (p3.y - p1.y) / 6} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
+
+const views = {};
+function draw(id, graph) {
+  const svg = $("#g-" + id); svg.innerHTML = "";
+  const g = new dagre.graphlib.Graph({ multigraph: false });
+  g.setGraph({ rankdir: "LR", nodesep: 22, ranksep: 70, edgesep: 14, marginx: 24, marginy: 30 });
+  g.setDefaultEdgeLabel(() => ({}));
+  const byId = Object.fromEntries(graph.nodes.map((n) => [n.id, n]));
+  for (const n of graph.nodes) { const lines = wrapLabel(n.label); g.setNode(n.id, { width: Math.max(...lines.map((l) => l.length)) * 7.2 + 34, height: 22 + lines.length * 16, lines }); }
+  for (const e of graph.edges) if (e.from !== e.to) g.setEdge(e.from, e.to, { count: e.count });
+  dagre.layout(g);
+  const W = g.graph().width, H = g.graph().height + 20;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.width = "100%"; svg.style.height = "auto"; svg.style.maxWidth = `${Math.round(W * 1.15)}px`; svg.style.margin = "0 auto";
+  const defs = el("defs", {}, svg);
+  for (const t of ["--crit", "--warn", "--edge", "--accent"]) {
+    const m = el("marker", { id: `ar-${id}${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M0,0 L10,5 L0,10 z", fill: css(t) }, m);
+  }
+  const max = Math.max(...graph.edges.map((e) => e.count));
+  const width = (c) => 1.5 + 7 * Math.sqrt(c / max);
+  const outOf = {}; for (const e of graph.edges) outOf[e.from] = (outOf[e.from] || 0) + e.count;
+  const labelled = new Set(graph.edges.slice().sort((a, b) => b.count - a.count).slice(0, 14).map((e) => e.from + ">" + e.to));
+  const eLayer = el("g", {}, svg), nLayer = el("g", {}, svg);
+  const edgeEls = [];
+  for (const e of graph.edges) {
+    const tone = edgeTone(byId[e.to].kind);
+    const grp = el("g", { class: "e" }, eLayer); grp.dataset.k = e.from + ">" + e.to;
+    let d, lx, ly;
+    if (e.from === e.to) {
+      const n = g.node(e.from); const x = n.x, y = n.y - n.height / 2;
+      d = `M${x - 14},${y} C${x - 30},${y - 40} ${x + 30},${y - 40} ${x + 14},${y}`; lx = x; ly = y - 34;
+    } else {
+      const pts = g.edge(e.from, e.to).points; d = smooth(pts); const m = pts[Math.floor(pts.length / 2)]; lx = m.x; ly = m.y - 6;
+    }
+    el("path", { d, class: "hit" }, grp);
+    el("path", { d, class: "line", stroke: css(tone), "stroke-width": width(e.count), "stroke-linecap": "round", "marker-end": `url(#ar-${id}${tone})` }, grp);
+    if (labelled.has(grp.dataset.k) || e.from === e.to) { const t = el("text", { x: lx, y: ly, "text-anchor": "middle", fill: css(tone === "--edge" ? "--muted" : tone) }, grp); t.textContent = (e.from === e.to ? "×" : "") + fmt(e.count); }
+    const pct = Math.round(100 * e.count / outOf[e.from]);
+    grp.addEventListener("mousemove", (ev) => showTip(ev, `<b>${esc(byId[e.from].label)}</b> → <b>${esc(byId[e.to].label)}</b><br>${fmt(e.count)} times, ${pct}% of what follows the first step`));
+    grp.addEventListener("mouseleave", hideTip);
+    edgeEls.push({ e, grp });
+  }
+  const nodeEls = {};
+  for (const n of graph.nodes) {
+    const p = g.node(n.id), k = KIND[n.kind] || KIND.step;
+    const grp = el("g", { class: "node", transform: `translate(${p.x - p.width / 2},${p.y - p.height / 2})`, tabindex: 0, role: "button", "aria-label": `${n.label}, ${n.cases} cases` }, nLayer);
+    el("rect", { width: p.width, height: p.height, rx: 7, fill: css(k.fill), stroke: css(k.stroke) }, grp);
+    let x = 12;
+    if (n.owner) { el("circle", { cx: 14, cy: 15, r: 4.5, fill: css("--" + n.owner) }, grp); x = 24; }
+    p.lines.forEach((l, i) => { const t = el("text", { x, y: 18 + i * 16, class: "t" }, grp); t.textContent = l; });
+    const c = el("text", { x, y: 18 + p.lines.length * 16, class: "c" }, grp); c.textContent = `${fmt(n.cases)} ${id === "desk" ? "cards" : "cases"}`;
+    const pick = () => select(id, n.id);
+    grp.addEventListener("click", pick); grp.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } });
+    nodeEls[n.id] = grp;
+  }
+  views[id] = { graph, byId, edgeEls, nodeEls };
+  svg.addEventListener("click", (ev) => { if (!ev.target.closest(".node")) select(id, null); });
+}
+
+function clearMarks(v) { for (const { grp } of v.edgeEls) grp.classList.remove("dim", "hl"); for (const g of Object.values(v.nodeEls)) g.classList.remove("sel", "dim"); }
+function select(id, nodeId) {
+  const v = views[id]; clearMarks(v); document.querySelectorAll(".root").forEach((r) => r.setAttribute("aria-pressed", "false"));
+  if (nodeId) {
+    v.nodeEls[nodeId].classList.add("sel");
+    for (const { e, grp } of v.edgeEls) if (e.from !== nodeId && e.to !== nodeId) grp.classList.add("dim");
+  }
+}
+function highlight(id, pairs) {
+  const v = views[id]; if (!v) return; clearMarks(v);
+  const keys = new Set(pairs.map(([a, b]) => a + ">" + b));
+  const nodes = new Set(pairs.flat());
+  for (const { grp } of v.edgeEls) grp.classList.add(keys.has(grp.dataset.k) ? "hl" : "dim");
+  for (const [k, g] of Object.entries(v.nodeEls)) if (!nodes.has(k)) g.classList.add("dim");
+}
+
+function foot(id) {
+  const kinds = id === "desk" ? ["ok", "person", "held", "fail"] : ["ok", "person", "held", "fail", "step"];
+  $("#foot-" + id).innerHTML = kinds.map((k) => `<span><i class="box" style="background:var(${KIND[k].fill});border-color:var(${KIND[k].stroke})"></i>${KIND[k].label}</span>`).join("")
+    + (id === "work" ? Object.entries(MGR).map(([k, l]) => `<span><i class="sw" style="background:var(--${k})"></i>${l}</span>`).join("") : "")
+    + `<span class="hint">Click a step to isolate its lines · ×n = repeated</span>`;
+}
+
+draw("work", DATA.work); foot("work");
+let mgr = "all";
+function drawDesk() {
+  $("#mgr").innerHTML = ["all", "harvey", "donna", "louis", "jessica"].map((m) => `<button type="button" aria-pressed="${m === mgr}" data-m="${m}">${m === "all" ? "All" : `<i class="sw" style="background:var(--${m})"></i>${MGR[m]}`}</button>`).join("");
+  $("#mgr").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { mgr = b.dataset.m; drawDesk(); }));
+  const g = DATA.desk[mgr];
+  if (!g.nodes.length) { $("#g-desk").innerHTML = ""; $("#desk-sub").textContent = `No cards for ${MGR[mgr]} yet.`; return; }
+  draw("desk", g);
+}
+drawDesk(); foot("desk");
+
+// ---- Roots ----
+$("#roots").innerHTML = DATA.roots.map((r) => `<button type="button" class="root" id="root-${r.id}" data-r="${r.id}" aria-pressed="false">
+  <span class="rhead"><span class="pill ${r.tone}">${r.tone === "crit" ? "Costs cases" : "Wastes work"}</span><span class="who"><i class="sw" style="background:var(--${r.owner})"></i>${MGR[r.owner]}</span></span>
+  <h3>${esc(r.title)}</h3>
+  <span class="why">${esc(r.why)}</span>
+  <span class="seen">${esc(r.seen)}</span></button>`).join("");
+document.querySelectorAll(".root").forEach((b) => b.addEventListener("click", () => {
+  const r = DATA.roots.find((x) => x.id === b.dataset.r);
+  document.querySelectorAll(".root").forEach((a) => a.setAttribute("aria-pressed", String(a.id === "root-" + r.id)));
+  if (r.graph !== "desk") highlight("work", r.highlight);
+  if (r.graph !== "work") { if (mgr !== "all") { mgr = "all"; drawDesk(); } highlight("desk", r.highlight); }
+  $("#" + (r.graph === "desk" ? "desk" : "work")).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}));
+</script>

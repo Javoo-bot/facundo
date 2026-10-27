@@ -107,6 +107,7 @@ Each step is a setting, not hard-coded: which orders are in scope, how far to lo
 - **One queue for "needs a human".** Every escalation lands in one prioritised list ([`cxAttention.ts`](dashboard/lib/cxAttention.ts)).
 - **Security in the database.** Postgres row-level security, so the public key alone can't read anything.
 - **An agent factory.** Each agent is one file ([`agents/thinking/`](agents/thinking/)). A missed quality bar becomes a task card and a draft pull request ([`agents/factory/`](agents/factory/)).
+- **Agent monitoring.** Managers own the rules, an engineer agent fixes, and three pages show where they get stuck: a rule map, trouble paths and a control room ([`docs/agent-factory/garden-1.2/`](docs/agent-factory/garden-1.2/)).
 - **Tested end to end.** 2,500+ tests, including a [full order-loop test](ingest-worker/test/e2e/orderLoop.e2e.test.ts) against an in-memory database.
 
 ---

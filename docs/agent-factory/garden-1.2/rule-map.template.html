@@ -1,0 +1,341 @@
+<title>Rule Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: corporate-trust, light only by choice (matches the repo's Smart design brand).
+   Header + stats, chain strip, toolbar, map beside a detail panel. */
+:root {
+  color-scheme: light;
+  --bg: #FFFFFF; --panel: #F8FAFC; --inset: #F1F5F9;
+  --ink: #0F1722; --body: #3B4657; --muted: #5B6777;
+  --line: #E1E7EF; --line-strong: #C7D0DC;
+  --accent: #1F4FE0; --accent-wash: #EAF0FD;
+  --ok: #0E7F4B; --crit: #C0362C; --warn: #A86400; --plan: #9AA4B2;
+  --ok-wash: #E8F4EE; --crit-wash: #FBECEA; --warn-wash: #FBF3E6;
+  --harvey: #2D6A73; --donna: #8A5A1F; --louis: #7B3F8C; --jessica: #0F1722; --agent: #3B4657;
+  --ph1: #7B3F8C; --ph2: #4B5FA8; --ph3: #2D6A73; --ph4: #8A5A1F; --ph5: #3B4657; --ph6: #5B6777; --ph7: #9A4A6A;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+body { background: var(--bg); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 14px; }
+h1, h2, h3 { margin: 0; color: var(--ink); font-weight: 600; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: clamp(1.8rem, 3.2vw, 2.2rem); letter-spacing: -.01em; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--muted); }
+.lbl-sm { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.num { font-variant-numeric: tabular-nums; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); display: inline-block; flex: none; }
+.chip { font-size: 12px; font-weight: 500; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+
+/* Header */
+.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end; }
+.top .intro { display: grid; gap: 4px; max-width: 72ch; }
+.stats { display: grid; grid-template-columns: repeat(5, auto); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stat { padding: 8px 14px; display: grid; gap: 0; border-left: 1px solid var(--line); background: var(--bg); }
+.stat:first-child { border-left: 0; }
+.stat b { font-size: 20px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+
+/* Chain strip */
+.chain { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.chain li { padding: 8px 12px; display: grid; gap: 1px; font-size: 13px; border-left: 1px solid var(--line); }
+.chain li:first-child { border-left: 0; }
+.chain li b { color: var(--ink); font-weight: 600; font-size: 13px; }
+
+/* Toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.seg button, .filters button { font: inherit; font-size: 13px; font-weight: 500; border: 0; background: var(--bg); color: var(--body); padding: 6px 12px; cursor: pointer; transition: background .12s, color .12s; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #FFFFFF; }
+.seg button:hover:not([aria-pressed="true"]), .filters button:hover:not([aria-pressed="true"]) { background: var(--inset); }
+.filters { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.filters button { border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
+.filters button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+.toolbar input { font: inherit; font-size: 13px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); border-radius: 6px; padding: 5px 10px; width: 200px; max-width: 100%; margin-left: auto; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Map + panel */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.map { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; position: relative; min-width: 0; background: var(--bg); }
+.map svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; max-height: 80vh; cursor: grab; touch-action: none; }
+.mapfoot { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted); }
+.mapfoot span { display: inline-flex; gap: 6px; align-items: center; }
+.mapfoot .hint { margin-left: auto; }
+.panel { border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 8px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); min-width: 0; background: var(--bg); max-height: 80vh; overflow: auto; }
+.panel h2 { font-size: 15px; font-family: var(--mono); font-weight: 500; word-break: break-word; }
+.panel .k { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; padding-top: 2px; }
+.panel .v { font-size: 14px; }
+.panel .row { padding: 6px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.pill { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; width: fit-content; border: 1px solid currentColor; }
+.steps { display: grid; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.steps div { display: grid; grid-template-columns: 78px 1fr; gap: 8px; font-size: 13px; padding: 5px 8px; border-top: 1px solid var(--line); }
+.steps div:first-child { border-top: 0; }
+.steps div b { font-size: 12px; font-weight: 500; color: var(--muted); }
+.lbl { font-family: var(--mono); fill: var(--body); }
+.lbl.grp { font-family: var(--sans); font-weight: 600; fill: var(--ink); }
+.lbl.top { font-family: var(--sans); font-weight: 600; }
+.dim { opacity: .13; }
+.sel circle.node { stroke: var(--accent); stroke-width: 3px; }
+
+@media (max-width: 1080px) { .main { grid-template-columns: 1fr; } .panel { position: static; max-height: none; } }
+@media (max-width: 760px) { .top { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(3, auto); } .chain { grid-template-columns: 1fr 1fr; } .chain li:nth-child(3) { border-left: 0; } .toolbar input { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="intro">
+      <span class="lbl-sm">Agent factory · rules and managers</span>
+      <h1>Rule map</h1>    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <ol class="chain" aria-label="Chain of command for every fix">
+    <li><b>1. Brief</b><span>The manager writes what "fixed" means.</span></li>
+    <li><b>2. Code</b><span>Mike writes the fix as a draft PR.</span></li>
+    <li><b>3. Check</b><span>The manager checks the PR against its brief.</span></li>
+    <li><b>4. Last word</b><span>The card closes after y quiet days.</span></li>
+  </ol>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" data-v="area" aria-pressed="true">Area managers</button>
+      <button type="button" data-v="group" aria-pressed="false">General rules</button>
+      <button type="button" data-v="step" aria-pressed="false">By step</button>
+    </div>
+    <div class="filters" role="group" aria-label="Filter">
+      <button type="button" data-f="all" aria-pressed="true">All</button>
+      <button type="button" data-f="supply" aria-pressed="false">Harvey</button>
+      <button type="button" data-f="orderloop" aria-pressed="false">Donna</button>
+      <button type="button" data-f="proof" aria-pressed="false">Louis</button>
+      <button type="button" data-f="human" aria-pressed="false">Jessica</button>
+      <button type="button" data-f="open" aria-pressed="false">Open</button>
+    </div>
+    <input id="q" type="search" placeholder="Search situations" aria-label="Search situations">
+  </div>
+
+  <div class="main">
+    <div class="map" id="map">
+      <div class="mapfoot">
+        <span><i class="sw" style="background:var(--ok)"></i>Handled</span>
+        <span><i class="sw" style="background:var(--warn)"></i>In progress</span>
+        <span><i class="sw" style="background:var(--plan)"></i>Planned</span>
+        <span><i class="sw" style="background:var(--crit)"></i>Open</span>
+        <span><i class="ring"></i><span id="wired">Wired to an agent today</span></span>
+        <span><i class="sw" style="background:var(--harvey)"></i>Harvey</span>
+        <span><i class="sw" style="background:var(--donna)"></i>Donna</span>
+        <span><i class="sw" style="background:var(--louis)"></i>Louis</span>
+        <span><i class="sw" style="background:var(--jessica)"></i>Jessica</span>
+        <span class="hint">Zoom in to read situation names</span>
+      </div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+const DATA = __DATA__;
+const OWNERS = __OWNERS__;
+const GROUPS = __GROUPS__;
+const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+const PHASE_TONE = ["--ph1", "--ph2", "--ph3", "--ph4", "--ph5", "--ph6"];
+const STATUS = { handled: ["--ok", "Handled"], "in-progress": ["--warn", "In progress"], planned: ["--plan", "Planned"], open: ["--crit", "Open"], shipped: ["--ok", "Shipped"] };
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// By step: root -> phases (+ "Anywhere") -> stages -> situations.
+const root = { name: "All rules", kind: "root", children: [] };
+DATA.phases.forEach((p, i) => {
+  root.children.push({ name: p.label, kind: "phase", tone: PHASE_TONE[i % PHASE_TONE.length], phaseId: p.id,
+    children: p.stages.map((s) => ({ name: s.label, kind: "stage", short: s.short, status: s.status, phase: p.label, phaseId: p.id, tone: PHASE_TONE[i % PHASE_TONE.length],
+      children: s.branches.map((b) => ({ ...b, name: b.id, kind: "rule", stage: s.label, phase: p.label, phaseId: p.id, owner: OWNERS[b.id] || null })) })) });
+});
+root.children.push({ name: "Anywhere in the loop", kind: "phase", tone: "--ph7", phaseId: "cross",
+  children: DATA.cross.map((b) => ({ ...b, name: b.id, kind: "rule", stage: "Cross-cutting", phase: "Anywhere in the loop", phaseId: "cross", owner: OWNERS[b.id] || null })) });
+
+const rules = [];
+root.children.forEach((p) => p.children.forEach((c) => { if (c.kind === "rule") rules.push(c); else (c.children || []).forEach((r) => rules.push(r)); }));
+rules.forEach((r) => { r.group = GROUPS.find((gr) => gr.members.includes(r.id)).id; });
+const byId = Object.fromEntries(rules.map((r) => [r.id, r]));
+const groupRoot = { name: "All rules", kind: "root", children: GROUPS.map((gr) => ({ ...gr, name: gr.id, kind: "group", tone: gr.owner ? "--agent" : "--crit",
+  children: gr.members.map((id) => byId[id]) })) };
+
+// Area managers: three promoted roles plus you. A promoted manager is a new factory
+// role file that reads the specialists' files; the production agents stay as they are.
+const AREAS = [
+  { id: "supply", name: "Harvey · Supply", tone: "--harvey", mkind: "area", promoted: "Scout", drawsOn: ["Bloom", "Sherlock", "Cupid", "Quill"],
+    note: "Finding, vetting and reaching shops. Promoted from Scout. Reads Bloom, Sherlock, Cupid and Quill as specialists.",
+    rules: ["area-has-florists", "only-ready-shops", "offer-reaches-shop", "recruiting-honest-once"] },
+  { id: "orderloop", name: "Donna · Order loop", tone: "--donna", mkind: "area", promoted: "Concierge", drawsOn: ["Babel"],
+    note: "An order's path from intake to delivery, including Shopify staying in step and someone watching stalled orders. Promoted from Concierge, which already answers florists about real orders. Reads Babel as a specialist. If it gets too broad, split into 'order in and placed' and 'accepted to delivered'.",
+    rules: ["order-in-clean", "order-on-map", "offer-gets-answer", "accepted-gets-delivered", "florist-questions-answered", "shopify-agrees", "someone-watching"] },
+  { id: "proof", name: "Louis · Proof", tone: "--louis", mkind: "area", promoted: "Hawkeye", drawsOn: [],
+    note: "Is the delivery real. Promoted from Hawkeye. Small, but photo judgment is specialist work, so it stays on its own.",
+    rules: ["photo-proves-delivery"] },
+  { id: "human", name: "Jessica · You", tone: "--jessica", mkind: "you", promoted: null, drawsOn: [],
+    note: "The human in the loop, kept small on purpose: money, customer complaints, and draft PRs for now.",
+    rules: ["pay-exactly-owed"] },
+];
+const areaOf = (gr) => AREAS.find((a) => a.rules.includes(gr.id));
+const areaRoot = { name: "You", kind: "root", children: AREAS.map((a) => ({ ...a, kind: "manager",
+  children: a.rules.map((rid) => { const gr = GROUPS.find((x) => x.id === rid); return { ...gr, name: gr.id, kind: "group", tone: a.tone, children: gr.members.map((id) => byId[id]) }; }) })) };
+
+// Stats
+const count = (f) => rules.filter(f).length;
+const stats = [
+  [rules.length, "situations", null],
+  [GROUPS.length, "general rules", null],
+  [AREAS.length, "managers", null],
+  [count((r) => r.status === "open"), "open", "--crit"],
+  [count((r) => r.owner), "wired to an agent today", "--accent"],
+];
+document.getElementById("wired").textContent = `Wired to an agent today (${count((r) => r.owner)} of ${rules.length})`;
+document.getElementById("stats").innerHTML = stats.map(([n, l, c]) =>
+  `<div class="stat"><b>${n}</b><span>${c ? `<i class="sw" style="background:var(${c})"></i>` : ""}${l}</span></div>`).join("");
+
+// Map. Text sizes are in drawing units; a label is shown only once it renders at 12px or more.
+const R = 470, LABEL = 160, SIZE = (R + LABEL) * 2, MIN_PX = 12;
+let h, node, view = "area", zoomK = 1;
+const isChain = () => view === "area";
+function fitLabels() {
+  const svgEl = document.querySelector("#map svg"); if (!svgEl) return;
+  const base = svgEl.getBoundingClientRect().width / SIZE;
+  d3.selectAll("#map text[data-size]").attr("display", function () { return +this.dataset.size * base * zoomK >= MIN_PX ? null : "none"; });
+}
+function draw() {
+  d3.select("#map svg").remove();
+  zoomK = 1;
+  h = d3.hierarchy(view === "area" ? areaRoot : view === "group" ? groupRoot : root);
+  d3.cluster().size([2 * Math.PI, R]).separation((a, b) => (a.parent === b.parent ? 1 : 1.6))(h);
+  h.each((d) => {
+    if (isChain()) { if (d.depth === 1) d.y = R * 0.26; if (d.depth === 2) d.y = R * 0.62; return; }
+    if (d.depth === 1) d.y = R * (view === "group" ? 0.42 : 0.30); if (d.depth === 2 && d.data.kind === "stage") d.y = R * 0.62; });
+  const pt = (a, r) => [r * Math.sin(a), -r * Math.cos(a)];
+
+  const svg = d3.select("#map").insert("svg", ".mapfoot").attr("viewBox", [-SIZE / 2, -SIZE / 2, SIZE, SIZE]).attr("role", "img").attr("aria-label", "Radial map of all lifecycle situations");
+  const g = svg.append("g");
+  svg.call(d3.zoom().scaleExtent([0.8, 8]).on("zoom", (e) => { g.attr("transform", e.transform); zoomK = e.transform.k; fitLabels(); }));
+
+  const tone = (d) => css(d.data.tone || "--muted");
+  g.append("g").attr("fill", "none").selectAll("path").data(h.links()).join("path")
+    .attr("stroke", (d) => d.target.data.kind === "rule" ? css("--line-strong") : tone(d.target))
+    .attr("stroke-opacity", (d) => d.target.data.kind === "rule" ? 0.9 : 0.6)
+    .attr("stroke-width", (d) => d.target.depth === 1 ? 2.5 : d.target.data.kind === "rule" ? 1 : 1.6)
+    .attr("d", d3.linkRadial().angle((d) => d.x).radius((d) => d.y));
+
+  node = g.append("g").selectAll("g").data(h.descendants()).join("g")
+    .attr("transform", (d) => `translate(${pt(d.x, d.y)})`)
+    .style("cursor", (d) => d.depth ? "pointer" : "default");
+
+  node.filter((d) => d.data.kind === "rule" && d.data.owner).append("circle").attr("r", 10).attr("fill", "none").attr("stroke", css("--accent")).attr("stroke-width", 2.4);
+  node.append("circle").attr("class", "node")
+    .attr("r", (d) => d.depth === 0 ? 46 : d.data.kind === "manager" ? 19 : d.data.kind === "group" ? (isChain() ? 10 : 13) : d.depth === 1 ? 11 : d.data.kind === "stage" ? 7 : 6)
+    .attr("fill", (d) => d.depth === 0 ? css("--ink") : d.data.kind === "rule" ? css((STATUS[d.data.status] || STATUS.planned)[0]) : d.data.kind === "stage" ? css("--bg") : tone(d))
+    .attr("stroke", (d) => d.data.kind === "stage" ? tone(d) : css("--bg"))
+    .attr("stroke-width", (d) => d.data.kind === "stage" ? 2.5 : 1.4);
+
+  const rootTxt = view === "area" ? "Jessica" : String(rules.length);
+  node.filter((d) => d.depth === 0).append("text").attr("data-size", 26).attr("text-anchor", "middle").attr("dy", "-0.05em").attr("fill", css("--bg")).style("font", "600 26px var(--sans)").text(rootTxt);
+  node.filter((d) => d.depth === 0).append("text").attr("data-size", 18).attr("text-anchor", "middle").attr("dy", "1.35em").attr("fill", css("--bg")).style("font", "500 18px var(--sans)").text(isChain() ? "merges" : "situations");
+
+  node.filter((d) => d.data.kind === "rule").append("text").attr("class", "lbl").attr("data-size", 14).style("font-size", "14px")
+    .attr("dy", "0.32em")
+    .attr("transform", (d) => { const deg = d.x * 180 / Math.PI; return deg < 180 ? `rotate(${deg - 90}) translate(13,0)` : `rotate(${deg + 90}) translate(-13,0)`; })
+    .attr("text-anchor", (d) => d.x < Math.PI ? "start" : "end")
+    .text((d) => d.data.id);
+  const halo = (sel, w) => sel.attr("paint-order", "stroke").attr("stroke", css("--bg")).attr("stroke-width", w).attr("stroke-linejoin", "round");
+  halo(node.filter((d) => d.data.kind === "stage" || (isChain() && d.data.kind === "group")).append("text").attr("class", "lbl grp").attr("data-size", 22).style("font-size", "22px")
+    .attr("text-anchor", "middle").attr("dy", "-0.95em").text((d) => d.data.name), 5);
+  halo(node.filter((d) => d.depth === 1).append("text").attr("class", "lbl top").attr("data-size", 26).style("font-size", "26px")
+    .attr("text-anchor", "middle").attr("dy", "-1.05em").attr("fill", (d) => tone(d))
+    .text((d) => d.data.kind === "group" ? `${d.data.name} · ${d.data.owner ? cap(d.data.owner) : "no agent"}` : d.data.name), 6);
+
+  node.on("click", (e, d) => { if (d.depth) show(d); });
+  apply();
+  fitLabels();
+}
+window.addEventListener("resize", fitLabels);
+
+// Detail panel
+const panel = document.getElementById("panel");
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]).replace(/`([^`]+)`/g, "<code>$1</code>");
+const openIn = (m) => m.children.reduce((a, gr) => a + gr.members.filter((id) => byId[id].status === "open").length, 0);
+const sitIn = (m) => m.children.reduce((a, gr) => a + gr.members.length, 0);
+function showIntro() {
+  if (view === "area") {
+    panel.innerHTML = `<span class="k">Area managers</span><div class="v muted">Three agents promoted to manage an area, reading the others as specialists. Jessica keeps money.</div>
+    <div>${areaRoot.children.map((m) => `<div class="row"><b style="color:var(${m.tone})">${esc(m.name)}</b><br>
+      <span class="muted">${m.promoted ? `From ${m.promoted}` : "Human in the loop"}${m.drawsOn.length ? ` · reads ${m.drawsOn.join(", ")}` : ""}</span><br>
+      <span class="num">${m.children.length} rule${m.children.length > 1 ? "s" : ""} · ${sitIn(m)} situations · ${openIn(m)} open</span></div>`).join("")}</div>`;
+    return;
+  }
+  if (view === "group") {
+    panel.innerHTML = `<span class="k">13 general rules</span><div class="v muted">Cards open on these. A new situation becomes one more dot under its rule.</div>
+    <div>${GROUPS.map((gr) => `<div class="row"><b style="color:var(${gr.owner ? "--agent" : "--crit"})">${gr.owner ? cap(gr.owner) : "No agent"}</b> <span class="muted num">· ${gr.members.length}</span><br>${esc(gr.text)}</div>`).join("")}</div>`;
+    return;
+  }
+  panel.innerHTML = `<span class="k">By step</span><div class="v muted">How <code>lifecycle.ts</code> is laid out today.</div>
+  <div>${h.descendants().filter((d) => d.data.kind === "stage").sort((a, b) => (b.children?.length || 0) - (a.children?.length || 0)).slice(0, 6).map((d) => `<div class="row">${esc(d.data.name)} <span class="muted num">· ${d.children?.length || 0}</span></div>`).join("")}<div class="row">Anywhere in the loop <span class="muted num">· ${DATA.cross.length}</span></div></div>`;
+}
+function show(d) {
+  node.classed("sel", (n) => n === d);
+  const x = d.data;
+  if (x.kind === "rule") {
+    const [c, l] = STATUS[x.status] || STATUS.planned;
+    panel.innerHTML = `<span class="k">${esc(x.phase)} · ${esc(x.stage)}</span><h2>${esc(x.id)}</h2>
+      <span class="pill" style="color:var(${c})">${l}${x.milestone === "later" ? " · later" : ""}</span>
+      <span class="k">What goes wrong</span><div class="v">${esc(x.trigger)}</div>
+      <span class="k">How it is handled</span><div class="v muted">${esc(x.handling)}</div>
+      <span class="k">Agent owner today</span><div class="v">${x.owner ? `<b style="color:var(--accent)">${cap(x.owner)}</b>` : "None"}</div>
+      <span class="k">General rule</span><div class="v mono">${esc(x.group)}</div>`;
+  } else if (x.kind === "group") {
+    const by = {}; x.members.forEach((id) => { const s = byId[id].status; by[s] = (by[s] || 0) + 1; });
+    const a = areaOf(x), mid = a.id, m = a.name.split(" · ")[0];
+    panel.innerHTML = `<span class="k">General rule</span><h2>${esc(x.id)}</h2><div class="v">${esc(x.text)}</div>
+      <span class="k">Situations</span><div class="v num"><b>${x.members.length}</b> · ${Object.entries(by).map(([s, n]) => `${(STATUS[s] || STATUS.planned)[1].toLowerCase()} ${n}`).join(", ")}</div>
+      <span class="k">When it breaks</span><div class="steps">
+        <div><b>Brief</b><span>${m}</span></div><div><b>Code</b><span>Mike, draft PR</span></div>
+        <div><b>Check</b><span>${m}, against the brief</span></div><div><b>Last word</b><span>Rule quiet for y days</span></div>
+        ${mid === "human" ? "" : `<div><b>Merge</b><span>Jessica</span></div>`}</div>`;
+  } else if (x.kind === "manager") {
+    panel.innerHTML = `<span class="k">Manager${x.mkind === "area" ? " · promoted" : ""}</span><h3 style="color:var(${x.tone})">${esc(x.name)}</h3><div class="v muted">${esc(x.note)}</div>
+      ${x.mkind === "you" ? `<span class="k">Her desk</span><div class="steps"><div><b>Money</b><span>Briefs and checks payout fixes</span></div><div><b>Complaints</b><span>Turns real ones into cards</span></div><div><b>Draft PRs</b><span>Reviews them for now</span></div></div>` : ""}
+      ${x.mkind === "area" ? `<span class="k">Reads</span><div class="v">${x.drawsOn.length ? esc(x.drawsOn.join(", ")) : "No specialists"}</div>` : ""}
+      <span class="k">Manages</span><div>${d.children.map((c) => `<div class="row">${esc(c.data.text)} <span class="muted num">· ${c.data.members.length}</span></div>`).join("")}</div>`;
+  } else if (x.kind === "stage") {
+    panel.innerHTML = `<span class="k">${esc(x.phase)} · step</span><h3>${esc(x.name)}</h3><div class="v muted">${esc(x.short)}</div><span class="k">Situations</span><div class="v num"><b>${d.children?.length || 0}</b></div>`;
+  } else if (x.kind === "phase") {
+    panel.innerHTML = `<span class="k">Phase</span><h3>${esc(x.name)}</h3><span class="k">Situations</span><div class="v num"><b>${d.leaves().filter((l) => l.data.kind === "rule").length}</b></div>`;
+  }
+}
+
+// Filters + search
+let filter = "all", query = "";
+function apply() {
+  const areaIdOf = (r) => areaOf({ id: r.group }).id;
+  const keep = (r) => (filter === "all" || (filter === "open" && r.status === "open") || filter === areaIdOf(r))
+    && (!query || (r.id + " " + r.trigger + " " + r.handling).toLowerCase().includes(query));
+  node.classed("dim", (d) => d.data.kind === "rule" ? !keep(d.data) : d.depth > 0 && !d.leaves().some((l) => l.data.kind === "rule" && keep(l.data)));
+}
+document.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
+  filter = b.dataset.f;
+  document.querySelectorAll("[data-f]").forEach((o) => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
+  apply();
+}));
+document.getElementById("q").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); apply(); });
+document.querySelectorAll("[data-v]").forEach((b) => b.addEventListener("click", () => {
+  view = b.dataset.v;
+  document.querySelectorAll("[data-v]").forEach((o) => o.setAttribute("aria-pressed", o === b ? "true" : "false"));
+  draw(); showIntro();
+}));
+draw(); showIntro();
+</script>
+
