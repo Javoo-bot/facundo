@@ -1,7 +1,9 @@
 name: Factory sweep (garden)
 
 # Turns garden signals (escalated conversations, stuck working-set orders,
-# photo checks that did not pass, failed garden scores) into factory cards in
+# photo checks that did not pass, failed garden scores, order-loop errors in
+# PostHog, ops reports in Slack's #cx-desk, customer complaints from Octocom)
+# into factory cards in
 # the side-project Supabase, and opens a deep-analysis card for any agent below
 # a minimum two days running. See agents/factory/sweep-signals.mjs.
 #
@@ -18,6 +20,10 @@ concurrency:
 
 permissions:
   contents: read
+  # Read-only: the sweep reads the owner's "answer: B" comments on the draft PRs
+  # and issues where a card asked him a question (agents/factory/questions.mjs).
+  issues: read
+  pull-requests: read
 
 jobs:
   sweep:
@@ -28,21 +34,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Dispatches read this file from main, which does not carry the garden scripts.
-          ref: garden
+          # Dispatches read this file from main, which does not carry the garden
+          # scripts, so main runs garden's code; a dispatch with --ref <branch>
+          # runs that branch's (to try sweep changes).
+          ref: ${{ github.ref_name == 'main' && 'garden' || github.ref_name }}
       # 24 strips TypeScript types, which the sweep needs to import the CX desk rules.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      # agents/monitoring's tests load pg from here.
+      - run: npm ci --prefix agents/supabase --no-audit --no-fund
       - name: Test the card rules
         run: node --test agents/factory/*.test.mjs agents/monitoring/*.test.mjs
+      # Ops messages in #cx-desk become alerts on a general rule
+      # (agents/factory/slack-intake-run.mjs); the sweep below turns them into
+      # cards like every other alert. Off until both Slack settings are set; a
+      # Slack failure never stops the sweep.
+      - name: Slack intake
+        continue-on-error: true
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CX_DESK_CHANNEL_ID: ${{ vars.SLACK_CX_DESK_CHANNEL_ID }}
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          GARDEN_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+        run: node agents/factory/slack-intake-run.mjs
+      # Customer complaints from Octocom (last 2 days, rerun-safe) become alerts
+      # with source 'complaint' (agents/factory/complaint-intake.mjs); the sweep
+      # below turns them into cards like every other alert. Off until
+      # OCTOCOM_API and OCTOCOM_BASE_URL are secrets; a failure never stops the sweep.
+      - name: Complaint intake
+        continue-on-error: true
+        env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
+          GARDEN_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          OCTOCOM_API: ${{ secrets.OCTOCOM_API }}
+          OCTOCOM_BASE_URL: ${{ secrets.OCTOCOM_BASE_URL }}
+        run: node agents/factory/complaint-intake.mjs --octocom --days 2
       - name: Sweep
         env:
           GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
           GARDEN_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
+          # The near match that places an alert on a general rule when no
+          # situation id fits: Haiku 4.5, capped at $0.50 a Madrid day
+          # (agents/factory/general-rules.mjs). Without it those alerts wait.
+          OPENROUTER_API_KEY: ${{ secrets.GARDEN_OPENROUTER_API_KEY }}
           # The garden's Langfuse project: Babel, Bloom, Oracle and Polyglot are
           # measured from its traces (agents/monitoring/collect.mjs).
           LANGFUSE_PUBLIC_KEY: ${{ secrets.GARDEN_LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.GARDEN_LANGFUSE_SECRET_KEY }}
           LANGFUSE_BASE_URL: ${{ secrets.GARDEN_LANGFUSE_BASE_URL }}
+          # Order-loop errors (errorCards in cards.mjs). Off until the owner adds a
+          # PostHog personal API key with read access to the garden project.
+          GARDEN_POSTHOG_PERSONAL_API_KEY: ${{ secrets.GARDEN_POSTHOG_PERSONAL_API_KEY }}
+          GARDEN_POSTHOG_HOST: ${{ secrets.GARDEN_POSTHOG_HOST }}
+          GARDEN_POSTHOG_PROJECT_ID: ${{ vars.GARDEN_POSTHOG_PROJECT_ID }}
+          # Reads answers to the factory's questions; this job's token is read-only.
+          GH_TOKEN: ${{ github.token }}
         run: node agents/factory/sweep-signals.mjs

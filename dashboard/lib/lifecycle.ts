@@ -43,6 +43,13 @@ export interface Branch {
   status: BranchStatus;
   milestone: Milestone;
   plan?: string;
+  /** Set on a situation an agent added (agent factory, garden 1.2): the
+   *  manager who added it, the day (YYYY-MM-DD), and the general rule whose
+   *  near matches it came from — the rule it must sit under in
+   *  agents/factory/general-rules.json (checked by general-rules.test.mjs). */
+  addedBy?: "harvey" | "donna" | "louis" | "jessica";
+  addedOn?: string;
+  fromNear?: string;
 }
 
 /** One node on the happy path. */
@@ -440,6 +447,15 @@ export const PHASES: Phase[] = [
             plan: "Plan 3 / Order page",
           },
           {
+            id: "match-none-garden-planner",
+            trigger: "In the garden, nobody is in range and no person is meant to pick the order up.",
+            handling: "Garden only: instead of escalating, the worker opens a case for the Planner, which picks a step (reoffer wider, cold offer, ask the client to move the date) and a deterministic executor runs it. Money steps are held by policy with a rule gap.",
+            manual: "Nobody, by design. Held cases and rule gaps are read in aggregate (Garden pulse), and the fix goes into a rule or the Planner's thinking file, not into the case.",
+            automated: "ingest-worker/src/lateMatch.ts::matchAndWriteCandidates, when `GARDEN_PLANNER=1` on the garden database (ingest-worker/src/planRequest.ts), writes `plan_requested` to `agent_events` (once per case, after any other problem already on it, so a held money question never stops it) and leaves the order at `received`. The dashboard's wave tick runs lib/planRunner.ts::runPendingPlans: lib/planner.ts asks the free-model router for `propose_plan` (see x-planner-model-fails for when it keeps failing), and lib/planPolicy.ts::runPlan carries the step out through lib/approvalExecutors.ts::planStepEffects. Production (switch off) escalates exactly as before.",
+            status: "in-progress",
+            milestone: "later",
+          },
+          {
             id: "match-no-coordinates",
             trigger: "The order's delivery address never geocoded, so it has no `delivery_lat`/`delivery_lng`. Distance is now the primary ranking key, so there is nothing to rank by.",
             handling: "The hard filter rejects every florist when the distance is unknown, so the order matches nobody and escalates to CX. This is a deliberate change: before rings, a null distance meant every florist silently CLEARED the radius check and scored distance-zero, so an order we couldn't locate was offered to an essentially arbitrary shop. Refusing to guess is the safer failure. The 'Find florists' panel says so explicitly (422) rather than showing an empty list.",
@@ -773,6 +789,15 @@ export const PHASES: Phase[] = [
             status: "handled",
             milestone: "mvp",
             plan: "Plan 2",
+          },
+          {
+            id: "reachout-exhausted-garden-planner",
+            trigger: "In the garden, the refill guards stop and the list has run out, with no person to place the order.",
+            handling: "Garden only: the wave engine asks the Planner instead of escalating. It can reoffer further out than the usual cap, cold-offer a shop outside the network, or ask the client to move the date; after 3 plans this problem is held with a rule gap rather than looping. Holding is per problem: a later, different problem on the same order (a florist question, the client writing in) is still planned.",
+            manual: "Nobody, by design: the rule gaps are read in aggregate and fixed in rules or the Planner's thinking file.",
+            automated: "lib/waves.ts calls lib/caseEvents.ts::requestPlan at the escalation point when lib/plannerSwitch.ts::plannerEnabled; lib/planRunner.ts plans and executes from the case log, and a failed step re-opens planning with the failure in the reason. A request that cannot be written falls through to the normal escalation.",
+            status: "in-progress",
+            milestone: "later",
           },
           {
             id: "reachout-nobody-answers-phone",
@@ -1487,6 +1512,64 @@ export const PHASES: Phase[] = [
 
 // Cross-cutting exceptions that can fire at *any* stage, not just one node.
 export const CROSS_CUTTING: Branch[] = [
+  {
+    id: "x-tick-volume-limits",
+    trigger:
+      "Enough orders are live at once that one offer-wave tick either reads past PostgREST's 1,000-row cap (the rest are silently missing) or makes more calls than the platform allows one invocation (50 on the Cloudflare Free plan), so the tick dies part way and the orders after that point are never advanced.",
+    handling:
+      "HANDLED in the garden, by design dormant in production: every wave read is paged, and with WAVES_MAX_ORDERS_PER_TICK set the tick acts on at most that many orders and resumes from a saved cursor.",
+    manual:
+      "Nothing to do. An order waiting for its turn shows as reaching_out exactly as before; the next tick, a minute later, gets to it.",
+    automated:
+      "lib/waves.ts reads stale offers, held assignments (one joined read instead of id lists in the URL) and pending orders through lib/fetchAll.ts::fetchAllRows. With the cap set (only the garden dashboard sets it, dashboard/wrangler.jsonc env.garden), lib/waveBatch.ts::WaveBudget limits the orders acted on per call and app_settings.waves_cursor_order_id (supabase/migrations/2026-10-14-waves-cursor.sql) records where the walk stops; the response says `more` and how many subrequests it used, and the garden worker calls again while `more` holds (GARDEN_WAVES_CALLS_PER_TICK). Production leaves the cap unset and walks everything in one call.",
+    status: "handled",
+    milestone: "later",
+  },
+  {
+    id: "x-planner-instead-of-handoff",
+    trigger: "In the garden, Concierge cannot answer a florist alone (a delivery problem, a change request, a complaint, low confidence) and no person is meant to read the queue.",
+    handling: "Garden only: the guard's escalation becomes `propose` (the Planner picks a step) or, for money, a promise or terms, `hold` (held by policy, a rule gap, nobody paged). Either way the florist is told at once, in their language and on their channel, that we have the message and will come back shortly. A florist who asked for a person, an opt-out or an open issue still goes to a person.",
+    manual: "Nobody for proposed or held cases; the draft is kept on the thread. Rule gaps are read in aggregate.",
+    automated: "lib/cxAgentGuard.ts::escalationDecision with `planner: true` (set by lib/agentTurn.ts only when lib/plannerSwitch.ts::plannerEnabled and the thread is support) maps escalations to propose/hold. Every turn and guard decision is appended to `agent_events` (lib/caseEvents.ts), whose pure reducer gives the turn count, what the case waits on, the consecutive model errors, and each problem's plans and hold (one problem per conversation and intent, so a held money question never silences a later question). The acknowledgement leaves through lib/agentTurn.ts's normal send path with the text from lib/plannerAck.ts::ackText and is recorded as an `ack` event; a failed one is recorded, never paged. Rule gaps name their agent (concierge for a guard hold). Money steps never run alone (lib/planPolicy.ts::STEP_POLICY).",
+    status: "in-progress",
+    milestone: "later",
+  },
+  {
+    id: "x-planner-model-fails",
+    trigger: "In the garden, the Planner's model keeps answering badly (no tool call, broken JSON, a wrong shape) or not at all on a problem. Free models are non-deterministic, so one failure says nothing; many failures on similar messages are the signal.",
+    handling: "Garden only: three tries per tick, each with the earlier errors compacted into the prompt; the problem stays waiting for the next tick. After 9 consecutive errors it is held with a rule gap naming the error type and a fingerprint of the triggering message. No default plan and never a person. Near-identical messages share a fingerprint, so the failures cluster on Garden pulse, and a cluster that keeps coming back becomes a factory card for the Planner.",
+    manual: "Nobody per case. A factory card when the cluster rule fires (agents/factory/cluster-rule.mjs, docs/agent-factory/cluster-cards.md).",
+    automated: "lib/planner.ts::planWithErrorCounter (MODEL_TRIES_PER_TICK, MAX_MODEL_ERRORS in lib/caseEvents.ts) and lib/planner.ts::messageFingerprint; lib/gardenPulse.ts::ruleGapCases clusters them by agent, error and fingerprint; agents/factory/cards.mjs::clusterCards turns a cluster into a card only when it recurs on 5 days with more than 20 cases each, across 3 days, each day's Wilson lower bound above the baseline rate.",
+    status: "in-progress",
+    milestone: "later",
+  },
+  {
+    id: "x-planner-routine-case",
+    trigger: "In the garden, a case the Planner would spend a model call on is routine: no florist left (list ran out, no match, or a supply step just failed), a client asking for money back or a discount, or a client who only says thank you.",
+    handling: "Garden only: a skill decides it with no AI. No florist walks offer-wider, cold-offer, ask-to-move-date, skipping what was tried, then hands the case to the model; a money ask is held by policy with a rule gap; a pure thank-you closes. Anything with a question, a worry or a detail in it still goes to the model. Measured on the 599 plans of 14-17 Oct: about a third of plans become skills.",
+    manual: "Nobody.",
+    automated: "lib/planSkills.ts::skillPlan, called by lib/planRunner.ts before lib/planner.ts::callPlanner; the plan is an ordinary `plan` event with model `skill:<name>`, so lib/planPolicy.ts::runPlan still decides what runs.",
+    status: "handled",
+    milestone: "later",
+  },
+  {
+    id: "x-garden-ai-budget-full",
+    trigger: "In the garden, the free model providers run out of room for the day, or orders arrive faster than the AI budget can work them.",
+    handling: "Garden only: the router spills to a paid lane (Haiku 5.5 on the garden's OpenRouter key) capped at $0.95 a UTC day, under the key's own $1; the pretend people never use it. New orders wait in a waiting room and are let in oldest first at the pace the governor allows (calls a day, calls an hour, dollars a day); one that waits six hours is turned away.",
+    manual: "Nobody.",
+    automated: "agents/router/src/limits.ts (dollar book, `x-router-free-only`), agents/router/src/pools.ts::PAID_USD_PER_DAY, ingest-worker/src/gardenBudget.ts::governor, ingest-worker/src/gardenLife.ts (garden_waiting_room, admissionsThisTick).",
+    status: "handled",
+    milestone: "later",
+  },
+  {
+    id: "x-client-writes-in",
+    trigger: "A client emails about their order (a complaint on delivery day, a late order, a nervous or rude message, a question about the florist). The sender is no florist, so the message used to escalate as `unmatched-sender` for a person to read.",
+    handling: "Garden only: the sender is matched to the order's buyer and the message goes to the Planner, which chooses a step (apologise and reschedule, ask to move the date, close) instead of a person. The client gets an immediate acknowledgement in the order's language, and the move-date and apology emails are sent in it too. Production still sends it to a person.",
+    manual: "Production: CX reads the escalated thread, attached to the order when the reply was threaded to one. Garden: nobody; money steps are held by policy with a rule gap.",
+    automated: "lib/conversations.ts::ingestInbound, when lib/plannerSwitch.ts::plannerEnabled, calls lib/clientInbound.ts::recogniseClient (the threaded order's buyer_email, else the buyer's latest order), keeps one thread per client order, logs the message as a `client_reply` communication and appends `plan_requested` with trigger `client_message` to the conversation's case (lib/caseEvents.ts), then lib/plannerAck.ts::acknowledgeClient emails the acknowledgement in `orders.locale` and appends an `ack` event. lib/approvalExecutors.ts::planClientEmail sends email.client.move_date / apology in the same locale. The Planner runs on its own tick (app/api/orders/plans/tick). The garden's pretend clients write these through ingest-worker/src/gardenLife.ts.",
+    status: "in-progress",
+    milestone: "later",
+  },
   {
     id: "x-provisional-hold-never-fires",
     trigger:

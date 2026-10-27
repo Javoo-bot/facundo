@@ -5,9 +5,13 @@ name: Factory executor (one card, one draft PR)
 # the agent never holds what it does not need:
 #
 #   claim    garden DB key, read-only repo token: picks and claims the card, writes the brief
-#   agent    Claude token only, sudo removed: Claude Code works the card on a clone of garden
+#   agent    Claude token only, sudo removed: the card's manager writes its brief,
+#            Claude Code (Mike) works the card on a clone of garden, and the
+#            manager checks his commits against the brief (agents/factory/managers.mjs)
 #   publish  garden DB key + contents/pull-requests write: pushes factory/card-<id8>,
-#            opens the draft PR, records factory_runs
+#            opens the draft PR (a free-lane PR opens ready and merges itself,
+#            FACTORY_AUTOMERGE), records factory_runs; after a clean run with
+#            executor_ref garden it moves the factory-good tag (factory-doctor.yml)
 #
 # The ephemeral runner is the sandbox (task 010: unfamiliar programs need a full
 # sandbox). Trigger.dev (agents/clock/) dispatches it at 07:00 and 13:00 UTC;
@@ -24,6 +28,10 @@ on:
         description: Branch holding the executor code (the agent always works on garden)
         required: false
         default: garden
+      base:
+        description: Branch the agent works on and the draft PR targets (test runs only; normally garden)
+        required: false
+        default: garden
 
 concurrency:
   group: factory-execute
@@ -33,6 +41,7 @@ permissions: {}
 
 env:
   EXECUTOR_REF: ${{ inputs.executor_ref || 'garden' }}
+  FACTORY_BASE: ${{ inputs.base || 'garden' }}
   RUN_DIR: /tmp/factory-run
   NODE_OPTIONS: --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
 
@@ -57,6 +66,7 @@ jobs:
       - name: Claim a card
         id: claim
         env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
           SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
           CARD: ${{ inputs.card }}
         run: node agents/factory/execute-card.mjs --phase claim --runner local --dir "$RUN_DIR" ${CARD:+--card "$CARD"}
@@ -71,7 +81,8 @@ jobs:
     needs: claim
     if: needs.claim.outputs.run_id != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    # Garden boot (20) + Mike (55) + the manager's brief and check (10 each).
+    timeout-minutes: 115
     permissions:
       contents: read
     steps:
@@ -93,16 +104,38 @@ jobs:
           git clone -q --depth 1 --branch v0.9.57 https://github.com/michael-denyer/pstack-claude "$RUNNER_TEMP/pstack-claude"
           test -f "$RUNNER_TEMP/pstack-claude/plugins/pstack/skills/poteto-mode/SKILL.md"
           echo "FACTORY_PSTACK=$RUNNER_TEMP/pstack-claude/plugins/pstack" >> "$GITHUB_ENV"
-      - name: Take sudo away from the agent
+      # The agent's own garden: a throwaway local Supabase with invented rows and
+      # this card's clone of the dashboard on http://localhost:3001. Throwaway
+      # keys only. If it fails the agent still works, with tests alone.
+      - name: Boot the local garden
+        id: garden
+        continue-on-error: true
+        timeout-minutes: 20
         run: |
+          export FACTORY_BRANCH=$(node -p 'require(process.argv[1]).branch' "$RUN_DIR/run.json")
+          FACTORY_IN="$RUN_DIR/in" FACTORY_WORK="$RUN_DIR/work" bash agents/factory/box/run.sh clone
+          bash agents/factory/box/local-garden.sh "$RUN_DIR/work"
+      - name: Verify doctor on the local garden
+        if: steps.garden.outcome == 'success'
+        continue-on-error: true
+        working-directory: ${{ env.RUN_DIR }}/work
+        run: |
+          export NODE_OPTIONS="$NODE_OPTIONS --import file://$GITHUB_WORKSPACE/agents/factory/box/verify-local.mjs"
+          node .claude/skills/verify/control.mjs doctor
+      - name: Take sudo and Docker away from the agent
+        run: |
+          # The garden's containers keep running; the agent just cannot start new ones.
+          sudo chgrp root /var/run/docker.sock
+          if docker ps >/dev/null 2>&1; then echo "docker still works" >&2; exit 1; fi
           sudo rm -f /etc/sudoers.d/runner
           if sudo -n true 2>/dev/null; then echo "sudo still works" >&2; exit 1; fi
-      - name: Work the card
+      - name: Brief, work and check the card
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           FACTORY_MINUTES: "55"
           FACTORY_BUDGET_USD: "5"
           FACTORY_MAX_TURNS: "200"
+          FACTORY_MANAGER_BUDGET_USD: "0.5"
         run: node agents/factory/execute-card.mjs --phase agent --runner local --dir "$RUN_DIR"
       - if: always()
         uses: actions/upload-artifact@v4
@@ -115,10 +148,13 @@ jobs:
     needs: [claim, agent]
     if: always() && needs.claim.outputs.run_id != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     permissions:
       contents: write
       pull-requests: write
+      actions: write
+      # A run that asks the owner a question before writing code opens an issue for it.
+      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -138,6 +174,10 @@ jobs:
           path: ${{ env.RUN_DIR }}/out
       - name: Push, open the draft PR, record the run
         env:
+          GARDEN_SUPABASE_URL: ${{ secrets.GARDEN_SUPABASE_URL }}
           SUPABASE_API_KEY: ${{ secrets.GARDEN_SUPABASE_SERVICE_ROLE_KEY }}
           GH_TOKEN: ${{ github.token }}
+          # Free lane (wording or look only): the PR merges itself. Off with the
+          # repo variable FACTORY_AUTOMERGE=0.
+          FACTORY_AUTOMERGE: ${{ vars.FACTORY_AUTOMERGE || '1' }}
         run: node agents/factory/execute-card.mjs --phase publish --runner local --dir "$RUN_DIR"
